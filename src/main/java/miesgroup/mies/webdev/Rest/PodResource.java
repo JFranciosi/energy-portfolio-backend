@@ -10,66 +10,97 @@ import miesgroup.mies.webdev.Rest.Model.UpdatePodRequest;
 import miesgroup.mies.webdev.Service.PodService;
 
 import java.util.List;
+import java.util.Map;
 
 @Path("/pod")
+@Consumes(MediaType.APPLICATION_JSON)
+@Produces(MediaType.APPLICATION_JSON)
 public class PodResource {
+
     private final PodService podService;
 
     public PodResource(PodService podService) {
         this.podService = podService;
     }
 
+    // 1) Tutti i POD (con proxy su queryparam)
     @GET
-    @Produces(MediaType.APPLICATION_JSON)
-    public List<PodResponse> allPod(@CookieParam("SESSION_COOKIE") Integer sessionId) {
+    public List<PodResponse> allPod(
+            @CookieParam("SESSION_COOKIE") Integer sessionId
+    ) {
         return podService.tutti(sessionId);
     }
 
     @GET
-    @Produces(MediaType.APPLICATION_JSON)
     @Path("/dati")
-    public List<PodResponse> allPodProxy(@QueryParam("session_id") Integer sessionId) {
+    public List<PodResponse> allPodProxy(
+            @QueryParam("session_id") Integer sessionId
+    ) {
         return podService.tutti(sessionId);
     }
 
+    // 2) Dettaglio singolo POD
     @GET
     @Path("/{id}")
-    @Produces(MediaType.APPLICATION_JSON)
-    public Pod getPod(@PathParam("id") String id, @CookieParam("SESSION_COOKIE") int id_sessione) {
-        return podService.getPod(id, id_sessione);
+    public Pod getPod(
+            @PathParam("id") String id,
+            @CookieParam("SESSION_COOKIE") int idSessione
+    ) {
+        return podService.getPod(id, idSessione);
     }
 
+    // 3) Aggiungi / modifica sede e nazione
     @PUT
     @Path("/sedeNazione")
-    @Consumes(MediaType.APPLICATION_JSON)
-    @Produces(MediaType.APPLICATION_JSON)
-    public void updatePod(UpdatePodRequest request, @CookieParam("SESSION_COOKIE") int id_sessione) {
-        podService.addSedeNazione(request.getIdPod(), request.getSede(), request.getNazione(), id_sessione);
+    public void updatePod(
+            UpdatePodRequest request,
+            @CookieParam("SESSION_COOKIE") int idSessione
+    ) {
+        podService.addSedeNazione(
+                request.getIdPod(),
+                request.getSede(),
+                request.getNazione(),
+                idSessione
+        );
     }
 
     @PUT
     @Path("/modifica-sede-nazione")
-    @Consumes(MediaType.APPLICATION_JSON)
-    @Produces(MediaType.APPLICATION_JSON)
-    public void updatePodSedeNazione(UpdatePodRequest request, @CookieParam("SESSION_COOKIE") int id_sessione) {
-        podService.modificaSedeNazione(request.getIdPod(), request.getSede(), request.getNazione(), id_sessione);
+    public void updatePodSedeNazione(
+            UpdatePodRequest request,
+            @CookieParam("SESSION_COOKIE") int idSessione
+    ) {
+        podService.modificaSedeNazione(
+                request.getIdPod(),
+                request.getSede(),
+                request.getNazione(),
+                idSessione
+        );
     }
 
-    @GET
-    @Path("/bollette")
-    @Produces(MediaType.APPLICATION_JSON)
-    public List<PDFFile> getBollette(@CookieParam("SESSION_COOKIE") int id_sessione) {
-        List<Pod> elencoPod = podService.findPodByIdUser(id_sessione);
-        return podService.getBollette(elencoPod);
-    }
-
+    // 4) Spread
     @PUT
     @Path("/spread")
-    @Consumes(MediaType.APPLICATION_JSON)
-    @Produces(MediaType.APPLICATION_JSON)
-    public Response updateSpread(UpdatePodRequest request, @CookieParam("SESSION_COOKIE") int id_sessione) {
-        podService.addSpread(request.getIdPod(), request.getSpread(), id_sessione);
+    public Response updateSpread(
+            UpdatePodRequest request,
+            @CookieParam("SESSION_COOKIE") int idSessione
+    ) {
+        podService.addSpread(
+                request.getIdPod(),
+                request.getSpread(),
+                idSessione
+        );
         return Response.ok().build();
+    }
+
+    // 5) Bollette PDF
+    @GET
+    @Path("/bollette")
+    public List<PDFFile> getBollette(
+            @CookieParam("SESSION_COOKIE") int idSessione
+    ) {
+        List<Pod> elencoPod = podService.findPodByIdUser(idSessione);
+        return podService.getBollette(elencoPod);
     }
 
 }

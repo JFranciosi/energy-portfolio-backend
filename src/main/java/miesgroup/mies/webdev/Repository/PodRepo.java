@@ -24,11 +24,15 @@ public class PodRepo implements PanacheRepositoryBase<Pod, String> {
         this.fileRepo = fileRepo;
     }
 
+    // Restituisce TUTTI i POD (serve per BudgetService)
+    public List<Pod> listAll() {
+        return listAll();
+    }
+
     public List<Pod> findAll(int id_utente) {
         Cliente c = clienteRepo.findById(id_utente);
         return list("utente", c);
     }
-
 
     public Pod cercaIdPod(String id, int idUtente) {
         return find("id = ?1 AND utente.id = ?2", id, idUtente).firstResult();
@@ -38,7 +42,6 @@ public class PodRepo implements PanacheRepositoryBase<Pod, String> {
         Pod pod = find("id = ?1 AND utente.id = ?2", idPod, idUtente).firstResult();
         return (pod != null) ? pod.getId() : null;
     }
-
 
     public void aggiungiSedeNazione(String idPod, String sede, String nazione, int idUtente) {
         Pod pod = find("id = ?1 AND utente.id = ?2", idPod, idUtente).firstResult();
@@ -51,11 +54,9 @@ public class PodRepo implements PanacheRepositoryBase<Pod, String> {
         }
     }
 
-
     public List<Pod> findPodByIdUser(Integer idUser) {
         return list("utente.id", idUser);
     }
-
 
     public List<PDFFile> getBollette(List<Pod> elencoPod) {
         if (elencoPod == null || elencoPod.isEmpty()) {

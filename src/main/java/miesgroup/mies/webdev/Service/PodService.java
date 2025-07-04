@@ -2,13 +2,16 @@ package miesgroup.mies.webdev.Service;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
+import miesgroup.mies.webdev.Model.BollettaPod;
 import miesgroup.mies.webdev.Model.Cliente;
 import miesgroup.mies.webdev.Model.PDFFile;
 import miesgroup.mies.webdev.Model.Pod;
-import miesgroup.mies.webdev.Repository.ClienteRepo;
-import miesgroup.mies.webdev.Repository.FixingRepo;
 import miesgroup.mies.webdev.Repository.PodRepo;
 import miesgroup.mies.webdev.Repository.SessionRepo;
+import miesgroup.mies.webdev.Repository.FixingRepo;
+import miesgroup.mies.webdev.Repository.ClienteRepo;
+import miesgroup.mies.webdev.Repository.BudgetRepo;
+import miesgroup.mies.webdev.Repository.BollettaRepo;
 import miesgroup.mies.webdev.Rest.Exception.NotYourPodException;
 import miesgroup.mies.webdev.Rest.Model.PodResponse;
 import org.w3c.dom.Document;
@@ -23,8 +26,8 @@ import javax.xml.parsers.ParserConfigurationException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
+import java.math.BigDecimal;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -34,228 +37,201 @@ public class PodService {
     private final SessionService sessionService;
     private final SessionRepo sessionRepo;
     private final ClienteRepo clienteRepo;
-    private final FixingRepo fixingRepo;
+    private final BudgetRepo budgetRepo;
+    private final BollettaRepo bollettaRepo;
 
-    public PodService(PodRepo podRepo, SessionService sessionService, SessionRepo sessionRepo, ClienteRepo clienteRepo, FixingRepo fixingRepo) {
+    public PodService(
+            PodRepo podRepo,
+            SessionService sessionService,
+            SessionRepo sessionRepo,
+            ClienteRepo clienteRepo,
+            FixingRepo fixingRepo,
+            BudgetRepo budgetRepo,
+            BollettaRepo bollettaRepo
+    ) {
         this.podRepo = podRepo;
         this.sessionService = sessionService;
         this.sessionRepo = sessionRepo;
         this.clienteRepo = clienteRepo;
-        this.fixingRepo = fixingRepo;
+        this.budgetRepo = budgetRepo;
+        this.bollettaRepo = bollettaRepo;
     }
 
+    // ————————— XML / creazione POD —————————
 
     @Transactional
     public String extractValuesFromXml(byte[] xmlData, int sessione) {
-        ArrayList<Double> extractedValues = new ArrayList<>();
-        String id_pod = "";
-        int id_utente = sessionService.trovaUtentebBySessione(sessione);
-        String fornitore = "";
-        // Divide l'indirizzo in sede, CAP e città
-        String sede = "";
-        String cap = "";
-        String citta = "";
-        boolean esiste = false;
+        List<Double> vals = new ArrayList<>();
+        String idPod = "";
+        int idUtente = sessionService.trovaUtentebBySessione(sessione);
+        String fornitore = "", sede = "", cap = "", citta = "";
+        boolean exists = false;
+
         try {
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            DocumentBuilder builder = factory.newDocumentBuilder();
-            InputStream is = new ByteArrayInputStream(xmlData);
-            Document document = builder.parse(is);
+            DocumentBuilderFactory f = DocumentBuilderFactory.newInstance();
+            DocumentBuilder b = f.newDocumentBuilder();
+            Document doc = b.parse(new ByteArrayInputStream(xmlData));
 
-            NodeList lineNodes = document.getElementsByTagName("Line");
-            int estrai = 0;
-            for (int i = 0; i < lineNodes.getLength() && !esiste; i++) {
-                Node lineNode = lineNodes.item(i);
-                if (lineNode.getNodeType() == Node.ELEMENT_NODE) {
-                    Element lineElement = (Element) lineNode;
-                    String lineText = lineElement.getTextContent();
+            NodeList lines = doc.getElementsByTagName("Line");
+            for (int i = 0; i < lines.getLength() && !exists; i++) {
+                Node node = lines.item(i);
+                if (node.getNodeType() != Node.ELEMENT_NODE) continue;
+                String txt = node.getTextContent();
 
-                    if (lineText.contains("POD") && estrai < 1) {
-                        Node LineNode = lineNodes.item(i + 1);
-                        Element LineElement = (Element) LineNode;
-                        id_pod = LineElement.getTextContent();
+                // estrai POD
+                if (txt.contains("POD")) {
+                    idPod = ((Element) lines.item(i + 1)).getTextContent().trim();
+                }
+                // esiste già?
+                if (podRepo.verificaSePodEsiste(idPod, idUtente) != null) {
+                    exists = true;
+                    return idPod;
+                }
+                // estrai fornitore
+                if (txt.contains("SEGNALAZIONE GUASTI ELETTRICITA")) {
+                    fornitore = ((Element) lines.item(i + 2)).getTextContent().trim();
+                }
+                // estrai tensione/potenze
+                if ((txt.contains("Tensione di alimentazione") ||
+                        txt.contains("Potenza impegnata") ||
+                        txt.contains("Potenza disponibile"))
+                        && vals.size() < 3) {
+                    String raw = ((Element) lines.item(i + 1))
+                            .getTextContent()
+                            .replaceAll("^(\\d{1,2}\\.\\d{1,2}\\.\\d{2,4}\\s+){1,2}", "")
+                            .replaceAll("[^\\d,\\.\\-]", "")
+                            .replace(".", "")
+                            .replace(",", ".");
+                    try {
+                        vals.add(Double.parseDouble(raw));
+                    } catch (Exception ignored) {
                     }
-
-                    if (podRepo.verificaSePodEsiste(id_pod, id_utente) == null) {
-                        if (lineText.contains("SEGNALAZIONE GUASTI ELETTRICITA")) {
-                            Node LineNode = lineNodes.item(i + 2);
-                            Element LineElement = (Element) LineNode;
-                            fornitore = LineElement.getTextContent();
-                        }
-                        if (lineText.contains("Tensione di alimentazione") || lineText.contains("Potenza impegnata") || lineText.contains("Potenza disponibile") && estrai < 3) {
-                            estrai++;
-                            if (i + 1 < lineNodes.getLength()) {
-                                Node nextLineNode = lineNodes.item(i + 1);
-                                if (nextLineNode.getNodeType() == Node.ELEMENT_NODE) {
-                                    Element nextLineElement = (Element) nextLineNode;
-                                    String nextLineText = nextLineElement.getTextContent();
-
-                                    // Rimuovi i valori in formato data
-                                    String regexDateAtStart = "^(\\d{1,2}\\.\\d{1,2}\\.\\d{2,4}\\s+){1,2}";
-                                    String lineTextWithoutDate = nextLineText.replaceAll(regexDateAtStart, "").trim();
-
-                                    // Rimuove tutto tranne numeri, virgole, punti e segni meno
-                                    String valueString = lineTextWithoutDate.replaceAll("[^\\d.,-]", "").replace("€", "");
-
-                                    // Sostituisce le virgole con punti per la conversione
-                                    valueString = valueString.replace(".", "");
-                                    valueString = valueString.replace(",", ".");
-
-                                    try {
-                                        Double value = Double.parseDouble(valueString);
-                                        extractedValues.add(value);
-                                    } catch (NumberFormatException e) {
-                                        System.err.println("Error parsing value: " + nextLineText);
-                                    }
-                                }
-                            }
-                        }
-
-                        if (lineText.contains("Indirizzo di fornitura")) {
-                            // Costruiamo un StringBuilder per accodare più righe
-                            StringBuilder addressBuilder = new StringBuilder();
-
-                            // Partiamo dalla riga successiva
-                            int nextIndex = i + 1;
-                            while (nextIndex < lineNodes.getLength()) {
-                                Node nextNode = lineNodes.item(nextIndex);
-                                if (nextNode != null && nextNode.getNodeType() == Node.ELEMENT_NODE) {
-                                    String nextLineText = nextNode.getTextContent().trim();
-
-                                    // Se la prossima riga è vuota o contiene una parola chiave che indica un'altra sezione,
-                                    // interrompiamo la lettura dell'indirizzo.
-                                    if (nextLineText.isEmpty()
-                                            || nextLineText.contains("Tipologia cliente")) {
-                                        break;
-                                    }
-
-                                    // Altrimenti, accodiamo questa riga all'indirizzo
-                                    if (addressBuilder.length() > 0) {
-                                        addressBuilder.append(" ");
-                                    }
-                                    addressBuilder.append(nextLineText);
-
-                                    // Incrementiamo l'indice, così da saltare effettivamente queste righe
-                                    // (se vuoi processarle anche in altro modo, puoi omettere questo passaggio)
-                                    i = nextIndex;
-                                }
-                                nextIndex++;
-                            }
-
-                            // Ora abbiamo un indirizzo "multi-riga" dentro addressBuilder
-                            String indirizzo = addressBuilder.toString().trim();
-                            System.out.println("Indirizzo completo: " + indirizzo);
-
-                            // A questo punto puoi effettuare lo split come facevi prima
-                            // Per esempio:
-                            String[] parts = indirizzo.split(" - ");
-                            if (parts.length == 2) {
-                                sede = parts[0].trim();
-                                String capCitta = parts[1].trim();
-
-                                // Divide CAP e Città basandosi sul primo spazio
-                                String[] capCittaParts = capCitta.split(" ", 2);
-                                cap = capCittaParts[0];
-                                citta = (capCittaParts.length > 1) ? capCittaParts[1] : "";
-                            } else {
-                                System.out.println("❌ Errore: Formato dell'indirizzo non valido.");
-                            }
-
-                            // Stampa i risultati per verifica
-                            System.out.println("📌 Sede: " + sede);
-                            System.out.println("📌 CAP: " + cap);
-                            System.out.println("📌 Città: " + citta);
-                        }
-
-                    } else {
-                        esiste = true;
-                        id_pod = podRepo.verificaSePodEsiste(id_pod, id_utente);
-                        return id_pod;
+                }
+                // estrai indirizzo
+                if (txt.contains("Indirizzo di fornitura")) {
+                    StringBuilder sb = new StringBuilder();
+                    int j = i + 1;
+                    while (j < lines.getLength()) {
+                        Node nn = lines.item(j++);
+                        if (nn.getNodeType() != Node.ELEMENT_NODE) break;
+                        String part = nn.getTextContent().trim();
+                        if (part.isEmpty() || part.contains("Tipologia cliente")) break;
+                        if (sb.length() > 0) sb.append(" ");
+                        sb.append(part);
+                    }
+                    String[] sp = sb.toString().split(" - ");
+                    if (sp.length == 2) {
+                        sede = sp[0].trim();
+                        String[] cc = sp[1].split(" ", 2);
+                        cap = cc[0];
+                        citta = cc.length > 1 ? cc[1] : "";
                     }
                 }
             }
-            creaPod(extractedValues, id_utente, id_pod, fornitore, citta, cap, sede);
-        } catch (SAXException | IOException | ParserConfigurationException e) {
+            creaPod(vals, idUtente, idPod, fornitore, citta, cap, sede);
+
+        } catch (ParserConfigurationException | SAXException | IOException e) {
             e.printStackTrace();
         }
-        return id_pod;
-    }
-
-
-    @Transactional
-    public void creaPod(ArrayList<Double> extractedValues, int id_utente, String id_pod, String fornitore, String citta, String cap, String sede) {
-        Cliente c = clienteRepo.findById(id_utente);
-        Pod pod = new Pod();
-        pod.setUtente(c);
-        pod.setId(id_pod);
-        pod.setFornitore(fornitore);
-        pod.setTensioneAlimentazione(extractedValues.get(0));
-        pod.setPotenzaImpegnata(extractedValues.get(1));
-        pod.setPotenzaDisponibile(extractedValues.get(2));
-        pod.setSede(sede);
-        pod.setNazione(citta);
-        pod.setCap(cap);
-        if (pod.getTensioneAlimentazione() <= 1000.0) {
-            pod.setTipoTensione("Bassa");
-        } else if (pod.getTensioneAlimentazione() > 1000.0 && pod.getTensioneAlimentazione() <= 35000.0) {
-            pod.setTipoTensione("Media");
-        } else {
-            pod.setTipoTensione("Alta");
-        }
-        podRepo.persist(pod);
+        return idPod;
     }
 
     @Transactional
-    public List<PodResponse> tutti(int id_sessione) {
-        // Recupera la sessione e i POD associati
-        List<Pod> pods = podRepo.findAll(sessionRepo.find(id_sessione));
-
-        // Converte ogni Pod in un PodResponse usando il costruttore di PodResponse
-
-        return pods.stream()
-                .map(PodResponse::new)
-                .collect(Collectors.toList());
-    }
-
-
-    @Transactional
-    public Pod getPod(String id, int id_utente) {
-        return podRepo.cercaIdPod(id, sessionRepo.find(id_utente));
-    }
-
-    @Transactional
-    public void addSedeNazione(String idPod, String sede, String nazione, int idUtente) {
-        podRepo.aggiungiSedeNazione(idPod, sede, nazione, sessionRepo.find(idUtente));
+    public void creaPod(List<Double> vals, int idUtente, String idPod,
+                        String fornitore, String nazione, String cap, String sede) {
+        Cliente c = clienteRepo.findById(idUtente);
+        Pod p = new Pod();
+        p.setUtente(c);
+        p.setId(idPod);
+        p.setFornitore(fornitore);
+        p.setTensioneAlimentazione(vals.get(0));
+        p.setPotenzaImpegnata(vals.get(1));
+        p.setPotenzaDisponibile(vals.get(2));
+        p.setSede(sede);
+        p.setNazione(nazione);
+        p.setCap(cap);
+        double t = p.getTensioneAlimentazione();
+        p.setTipoTensione(t <= 1000 ? "Bassa" : t <= 35000 ? "Media" : "Alta");
+        podRepo.persist(p);
     }
 
     @Transactional
-    public List<Pod> findPodByIdUser(int idSessione) {
-        return podRepo.findPodByIdUser(sessionRepo.find(idSessione));
+    public List<PodResponse> tutti(int sessione) {
+        return podRepo.findAll(sessionRepo.find(sessione))
+                .stream().map(PodResponse::new).collect(Collectors.toList());
     }
 
     @Transactional
-    public List<PDFFile> getBollette(List<Pod> elencoPod) {
-        return podRepo.getBollette(elencoPod);
+    public Pod getPod(String id, int sessione) {
+        return podRepo.cercaIdPod(id, sessionRepo.find(sessione));
     }
 
-    public void addSpread(String idPod, Double spread, int idSessione) {
-
-        int idUtente = sessionService.trovaUtentebBySessione(idSessione);
-        if (idUtente != podRepo.findById(idPod).getUtente().getId()) {
-            throw new NotYourPodException("Non puoi modificare il pod di un altro utente");
-        }
-
-        podRepo.aggiungiSpread(idPod, spread);
+    @Transactional
+    public void addSedeNazione(String idPod, String sede, String nazione, int sessione) {
+        podRepo.aggiungiSedeNazione(idPod, sede, nazione, sessionRepo.find(sessione));
     }
 
-    public void modificaSedeNazione(String idPod, String sede, String nazione, int idSessione) {
-
-        int idUtente = sessionService.trovaUtentebBySessione(idSessione);
-        if (idUtente != podRepo.findById(idPod).getUtente().getId()) {
-            throw new NotYourPodException("Non puoi modificare il pod di un altro utente");
-        }
-
+    @Transactional
+    public void modificaSedeNazione(String idPod, String sede, String nazione, int sessione) {
+        int ut = sessionService.trovaUtentebBySessione(sessione);
+        if (ut != podRepo.findById(idPod).getUtente().getId())
+            throw new NotYourPodException("Non puoi modificare il POD di un altro utente");
         podRepo.modificaSedeNazione(idPod, sede, nazione);
     }
 
+    @Transactional
+    public void addSpread(String idPod, Double spread, int sessione) {
+        int ut = sessionService.trovaUtentebBySessione(sessione);
+        if (ut != podRepo.findById(idPod).getUtente().getId())
+            throw new NotYourPodException("Non puoi modificare il POD di un altro utente");
+        podRepo.aggiungiSpread(idPod, spread);
+    }
+
+    @Transactional
+    public List<PDFFile> getBollette(List<Pod> elenco) {
+        return podRepo.getBollette(elenco);
+    }
+
+    @Transactional
+    public List<Pod> findPodByIdUser(int sessione) {
+        return podRepo.findPodByIdUser(sessionRepo.find(sessione));
+    }
+
+    // ———————— NUOVE API ————————
+
+    /**
+     * Per ciascun mese, media fasce energetiche e oneri su tutte le sedi
+     */
+    @Transactional
+    public List<Map<String, Object>> getPrezziEnergiaTutti(int anno, int sessione) {
+        List<Pod> pods = findPodByIdUser(sessione);
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (int m = 1; m <= 12; m++) {
+            double sumP = 0, sumO = 0;
+            int cnt = 0;
+            for (Pod p : pods) {
+                List<BollettaPod> bl = bollettaRepo.list(
+                        "idPod = ?1 AND anno = ?2 AND mese = ?3",
+                        p.getId(), String.valueOf(anno), String.valueOf(m)
+                );
+                for (BollettaPod b : bl) {
+                    if (b.getSpeseEnergia() != null && b.getTotAttiva() != null && b.getTotAttiva() > 0) {
+                        sumP += b.getSpeseEnergia() / b.getTotAttiva();
+                        sumO += b.getOneri() != null ? b.getOneri() : 0;
+                        cnt++;
+                    }
+                }
+            }
+            if (cnt > 0) {
+                sumP /= cnt;
+                sumO /= cnt;
+            }
+            Map<String, Object> mappa = new HashMap<>();
+            mappa.put("mese", m);
+            mappa.put("prezzoEnergia", sumP);
+            mappa.put("oneri", sumO);
+            out.add(mappa);
+        }
+        return out;
+    }
 }
