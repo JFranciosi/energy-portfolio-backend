@@ -1,12 +1,11 @@
 package miesgroup.mies.webdev.Rest;
 
-import io.quarkus.mailer.Mailer;
-import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import miesgroup.mies.webdev.Model.Cliente;
 import miesgroup.mies.webdev.Model.CostoEnergia;
+import miesgroup.mies.webdev.Rest.Model.ClienteRequest;
 import miesgroup.mies.webdev.Service.ClienteService;
 import miesgroup.mies.webdev.Service.CostoEnergiaService;
 import miesgroup.mies.webdev.Service.SessionService;
@@ -27,6 +26,24 @@ public class ClienteResource {
         this.costoEnergiaService = costoEnergiaService;
     }
 
+    // Endpoint per creazione utente
+    @POST
+    @Path("/create")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response createCliente(ClienteRequest clienteRequest) {
+        try {
+            Cliente clienteCreato = clienteService.createCliente(clienteRequest);
+            return Response.status(Response.Status.CREATED)
+                    .entity(clienteService.parseResponse(clienteCreato))
+                    .build();
+        } catch (Exception e) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity("Errore nella creazione dell'utente: " + e.getMessage())
+                    .build();
+        }
+    }
+
     // Recupera il cliente basato sul sessionId
     @GET
     @Produces(MediaType.APPLICATION_JSON)
@@ -44,17 +61,17 @@ public class ClienteResource {
     }
 
     // Aggiorna le informazioni del cliente
-    @Path("/update")
     @PUT
+    @Path("/update")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public Response updateCliente(@CookieParam("SESSION_COOKIE") int sessionId, Map<String, String> updateData) {
+    public Response updateCliente(@CookieParam("SESSION_COOKIE") Integer sessionId, Map<String, String> updateData) {
+        if (sessionId == null) {
+            return Response.status(Response.Status.UNAUTHORIZED).entity("Sessione non valida").build();
+        }
         int idUtente = sessionService.trovaUtentebBySessione(sessionId);
-
         if (idUtente == 0) {
-            return Response.status(Response.Status.UNAUTHORIZED)
-                    .entity("Sessione non valida")
-                    .build();
+            return Response.status(Response.Status.UNAUTHORIZED).entity("Sessione non valida").build();
         }
 
         for (Map.Entry<String, String> entry : updateData.entrySet()) {
@@ -69,7 +86,11 @@ public class ClienteResource {
             }
         }
 
-        return Response.ok().build();
+        Cliente clienteAggiornato = clienteService.getCliente(idUtente);
+        if (clienteAggiornato == null) {
+            return Response.status(Response.Status.NOT_FOUND).entity("Cliente non trovato").build();
+        }
+        return Response.ok(clienteAggiornato).build();
     }
 
     @GET
@@ -93,7 +114,7 @@ public class ClienteResource {
 
             return Response.ok(costi).build();
         } catch (Exception e) {
-            System.out.println("error: " + e.getMessage()); // Log dell'errore, in ambiente di produzione usa un logger
+            System.out.println("error: " + e.getMessage()); // Log dell'errore, in produzione usa un logger
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                     .entity("Errore interno del server: " + e.getMessage())
                     .build();
@@ -143,6 +164,5 @@ public class ClienteResource {
                     .build();
         }
     }
-
 
 }

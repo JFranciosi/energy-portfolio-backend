@@ -2,13 +2,13 @@ package miesgroup.mies.webdev.Repository;
 
 import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.transaction.Transactional;
 import miesgroup.mies.webdev.Model.Cliente;
 import miesgroup.mies.webdev.Model.Pod;
 import miesgroup.mies.webdev.Service.LoggerService;
 
 import javax.sql.DataSource;
 import java.util.Optional;
-
 
 @ApplicationScoped
 public class ClienteRepo implements PanacheRepositoryBase<Cliente, Integer> {
@@ -50,6 +50,7 @@ public class ClienteRepo implements PanacheRepositoryBase<Cliente, Integer> {
         return findById(idUtente);
     }
 
+    @Transactional
     public boolean updateCliente(int idUtente, String field, String newValue) {
         Cliente cliente = findById(idUtente);
         if (cliente == null) {
@@ -87,6 +88,9 @@ public class ClienteRepo implements PanacheRepositoryBase<Cliente, Integer> {
             case "codiceAteco":
                 cliente.setCodiceAteco(newValue);
                 break;
+            case "codiceAtecoSecondario":
+                cliente.setCodiceAtecoSecondario(newValue);
+                break;
             case "energivori":
                 cliente.setEnergivori(Boolean.parseBoolean(newValue));
                 break;
@@ -97,9 +101,10 @@ public class ClienteRepo implements PanacheRepositoryBase<Cliente, Integer> {
                 try {
                     cliente.setConsumoAnnuoEnergia(Float.parseFloat(newValue));
                 } catch (NumberFormatException e) {
-                    return false; // Fallisce se il valore non è un numero valido
+                    return false;
                 }
                 break;
+
             case "fatturatoAnnuo":
                 try {
                     cliente.setFatturatoAnnuo(Float.parseFloat(newValue));
@@ -108,11 +113,10 @@ public class ClienteRepo implements PanacheRepositoryBase<Cliente, Integer> {
                 }
                 break;
             default:
-                return false; // Campo non valido
+                return false;
         }
         return true;
     }
-
 
     public Cliente getClienteByPod(String idPod) {
         Pod p = podRepo.find("id", idPod).firstResult();

@@ -4,12 +4,13 @@ import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.NewCookie;
 import jakarta.ws.rs.core.Response;
+import miesgroup.mies.webdev.Rest.Model.ClienteRequest;
+import miesgroup.mies.webdev.Rest.Model.ClienteResponse;
+import miesgroup.mies.webdev.Rest.Model.LoginRequest;
 import miesgroup.mies.webdev.Model.Cliente;
 import miesgroup.mies.webdev.Model.Sessione;
 import miesgroup.mies.webdev.Repository.ClienteRepo;
 import miesgroup.mies.webdev.Repository.SessionRepo;
-import miesgroup.mies.webdev.Rest.Model.ClienteResponse;
-import miesgroup.mies.webdev.Rest.Model.LoginRequest;
 import miesgroup.mies.webdev.Service.AutenticationService;
 import miesgroup.mies.webdev.Service.ClienteService;
 import miesgroup.mies.webdev.Service.Exception.ClienteCreationException;
@@ -21,15 +22,22 @@ import java.util.Optional;
 
 @Path("/Autentication")
 public class AutenticationResource {
+
     private final AutenticationService autenticationService;
-    private final ClienteService clienteSevice;
+    private final ClienteService clienteService;
     private final ClienteRepo clienteRepo;
     private final SessionRepo sessionRepo;
     private final SessionService sessionService;
 
-    public AutenticationResource(AutenticationService autenticationService, ClienteService clienteSevice, ClienteRepo clienteRepo, SessionRepo sessionRepo, SessionService sessionService) {
+    public AutenticationResource(
+            AutenticationService autenticationService,
+            ClienteService clienteService,
+            ClienteRepo clienteRepo,
+            SessionRepo sessionRepo,
+            SessionService sessionService) {
+
         this.autenticationService = autenticationService;
-        this.clienteSevice = clienteSevice;
+        this.clienteService = clienteService;
         this.clienteRepo = clienteRepo;
         this.sessionRepo = sessionRepo;
         this.sessionService = sessionService;
@@ -39,8 +47,8 @@ public class AutenticationResource {
     @Path("/Register")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public Response register(Cliente cliente) throws ClienteCreationException {
-        autenticationService.register(cliente);
+    public Response register(ClienteRequest clienteRequest) throws ClienteCreationException {
+        Cliente cliente = clienteService.createCliente(clienteRequest);
         return Response.ok("utente registrato").build();
     }
 
@@ -108,7 +116,6 @@ public class AutenticationResource {
                     .cookie(sessionCookie)
                     .build();
         } catch (Exception e) {
-            // Log dell'errore (usa il logger del tuo progetto, qui ad esempio System.err)
             System.err.println("Errore durante il logout: " + e.getMessage());
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                     .entity("Errore durante il logout")
@@ -148,7 +155,7 @@ public class AutenticationResource {
                         .entity("Cliente non trovato")
                         .build();
             } else {
-                ClienteResponse response = clienteSevice.parseResponse(c);
+                ClienteResponse response = clienteService.parseResponse(c);
                 return Response.ok(response).build();
             }
         } catch (Exception e) {
@@ -158,6 +165,4 @@ public class AutenticationResource {
                     .build();
         }
     }
-
-
 }

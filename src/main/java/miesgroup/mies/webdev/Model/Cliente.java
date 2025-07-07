@@ -3,7 +3,6 @@ package miesgroup.mies.webdev.Model;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 
-
 @Entity
 @Table(name = "utente")
 public class Cliente extends PanacheEntityBase {
@@ -35,7 +34,7 @@ public class Cliente extends PanacheEntityBase {
     private String stato;
 
     @Column(name = "Tipologia", nullable = false)
-    private String tipologia = "Cliente"; // Default impostato nel DB
+    private String tipologia = "Cliente";
 
     @Column(name = "Classe_Agevolazione")
     private String classeAgevolazione;
@@ -43,11 +42,14 @@ public class Cliente extends PanacheEntityBase {
     @Column(name = "codice_ateco")
     private String codiceAteco;
 
+    @Column(name = "codice_ateco_secondario")
+    private String codiceAtecoSecondario;
+
     @Column(name = "energivori")
-    private Boolean energivori = false; // Default impostato nel DB
+    private Boolean energivori = false;
 
     @Column(name = "gassivori")
-    private Boolean gassivori = false; // Default impostato nel DB
+    private Boolean gassivori = false;
 
     @Column(name = "consumo_annuo")
     private Float consumoAnnuoEnergia;
@@ -61,11 +63,13 @@ public class Cliente extends PanacheEntityBase {
     public Cliente() {
     }
 
-    public int getId() {
+    // Getter e Setter
+
+    public Integer getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(Integer id) {
         this.id = id;
     }
 
@@ -101,6 +105,22 @@ public class Cliente extends PanacheEntityBase {
         this.pIva = pIva;
     }
 
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public String getTelefono() {
+        return telefono;
+    }
+
+    public void setTelefono(String telefono) {
+        this.telefono = telefono;
+    }
+
     public String getStato() {
         return stato;
     }
@@ -115,22 +135,6 @@ public class Cliente extends PanacheEntityBase {
 
     public void setTipologia(String tipologia) {
         this.tipologia = tipologia;
-    }
-
-    public String getTelefono() {
-        return telefono;
-    }
-
-    public void setTelefono(String telefono) {
-        this.telefono = telefono;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
     }
 
     public String getClasseAgevolazione() {
@@ -149,31 +153,23 @@ public class Cliente extends PanacheEntityBase {
         this.codiceAteco = codiceAteco;
     }
 
+    public String getCodiceAtecoSecondario() {
+        return codiceAtecoSecondario;
+    }
+
+    public void setCodiceAtecoSecondario(String codiceAtecoSecondario) {
+        this.codiceAtecoSecondario = codiceAtecoSecondario;
+    }
+
     public Boolean getEnergivori() {
         return energivori;
-    }
-
-    public void setId(Integer id) {
-        this.id = id;
-    }
-
-    public Boolean getCheckEmail() {
-        return checkEmail;
-    }
-
-    public void setCheckEmail(Boolean checkEmail) {
-        this.checkEmail = checkEmail;
-    }
-
-    public void setCheckEmail(boolean checkEmail) {
-        this.checkEmail = checkEmail;
     }
 
     public void setEnergivori(Boolean energivori) {
         this.energivori = energivori;
     }
 
-    public Boolean isGassivori() {
+    public Boolean getGassivori() {
         return gassivori;
     }
 
@@ -197,4 +193,12 @@ public class Cliente extends PanacheEntityBase {
         this.fatturatoAnnuo = fatturatoAnnuo;
     }
 
+
+    public Boolean getCheckEmail() {
+        return checkEmail;
+    }
+
+    public void setCheckEmail(Boolean checkEmail) {
+        this.checkEmail = checkEmail;
+    }
 }
