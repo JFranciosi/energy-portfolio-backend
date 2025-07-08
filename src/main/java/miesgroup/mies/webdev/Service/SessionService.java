@@ -1,12 +1,17 @@
 package miesgroup.mies.webdev.Service;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import jakarta.transaction.Transactional;
 import miesgroup.mies.webdev.Model.Cliente;
 import miesgroup.mies.webdev.Repository.SessionRepo;
 
 @ApplicationScoped
 public class SessionService {
+
+    @PersistenceContext
+    EntityManager em;
 
     private final SessionRepo sessionRepo;
 
@@ -25,4 +30,10 @@ public class SessionService {
         return sessionRepo.findCategory(id);
     }
 
+    @Transactional
+    public void deleteSessionsByUserId(int userId) {
+        em.createQuery("DELETE FROM Sessione s WHERE s.utente.id = :userId")
+                .setParameter("userId", userId)
+                .executeUpdate();
+    }
 }

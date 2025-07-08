@@ -91,27 +91,55 @@ public class ClienteRepo implements PanacheRepositoryBase<Cliente, Integer> {
             case "codiceAtecoSecondario":
                 cliente.setCodiceAtecoSecondario(newValue);
                 break;
+
             case "energivori":
-                cliente.setEnergivori(Boolean.parseBoolean(newValue));
+                if (newValue == null || newValue.trim().isEmpty()) {
+                    cliente.setEnergivori(false);
+                } else {
+                    cliente.setEnergivori(Boolean.parseBoolean(newValue));
+                }
                 break;
+
             case "gassivori":
-                cliente.setGassivori(Boolean.parseBoolean(newValue));
+                if (newValue == null || newValue.trim().isEmpty()) {
+                    cliente.setGassivori(false);
+                } else {
+                    cliente.setGassivori(Boolean.parseBoolean(newValue));
+                }
                 break;
+
+            case "checkEmail":
+                if (newValue == null || newValue.trim().isEmpty()) {
+                    cliente.setCheckEmail(false);
+                } else {
+                    cliente.setCheckEmail(Boolean.parseBoolean(newValue));
+                }
+                break;
+
             case "consumoAnnuoEnergia":
-                try {
-                    cliente.setConsumoAnnuoEnergia(Float.parseFloat(newValue));
-                } catch (NumberFormatException e) {
-                    return false;
+                if (newValue == null || newValue.trim().isEmpty()) {
+                    cliente.setConsumoAnnuoEnergia(null);
+                } else {
+                    try {
+                        cliente.setConsumoAnnuoEnergia(Float.parseFloat(newValue));
+                    } catch (NumberFormatException e) {
+                        return false;
+                    }
                 }
                 break;
 
             case "fatturatoAnnuo":
-                try {
-                    cliente.setFatturatoAnnuo(Float.parseFloat(newValue));
-                } catch (NumberFormatException e) {
-                    return false;
+                if (newValue == null || newValue.trim().isEmpty()) {
+                    cliente.setFatturatoAnnuo(null);
+                } else {
+                    try {
+                        cliente.setFatturatoAnnuo(Float.parseFloat(newValue));
+                    } catch (NumberFormatException e) {
+                        return false;
+                    }
                 }
                 break;
+
             default:
                 return false;
         }

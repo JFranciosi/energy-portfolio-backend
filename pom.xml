@@ -218,6 +218,7 @@
                     <source>21</source>
                     <target>21</target>
                     <parameters>true</parameters>
+                    <compilerArgs>--enable-preview</compilerArgs>
                 </configuration>
             </plugin>
 

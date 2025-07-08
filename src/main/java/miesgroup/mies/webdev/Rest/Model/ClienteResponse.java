@@ -2,6 +2,8 @@ package miesgroup.mies.webdev.Rest.Model;
 
 public class ClienteResponse {
 
+    private int id;
+
     private String username;
     private String email;
     private String pIva;
@@ -21,10 +23,11 @@ public class ClienteResponse {
     private Boolean gassivori;
     private Boolean checkEmail;
 
-    public ClienteResponse(String username, String email, String pIva, String sedeLegale, String telefono, String stato, String tipologia,
+    public ClienteResponse(int id, String username, String email, String pIva, String sedeLegale, String telefono, String stato, String tipologia,
                            String classeAgevolazione, String codiceAteco, String codiceAtecoSecondario,
                            Float consumoAnnuoEnergia, Float fatturatoAnnuo,
                            Boolean energivori, Boolean gassivori, Boolean checkEmail) {
+        this.id = id;
         this.username = username;
         this.email = email;
         this.pIva = pIva;
@@ -42,7 +45,15 @@ public class ClienteResponse {
         this.checkEmail = checkEmail;
     }
 
-    // getters per tutti i campi
+    // getter e setter per id
+    public int getId() {
+        return id;
+    }
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    // getters per tutti gli altri campi
 
     public String getUsername() { return username; }
     public String getEmail() { return email; }

@@ -48,14 +48,13 @@ public class ClienteService {
         return clienteRepo.getClasseAgevolazioneByPod(idPod);
     }
 
-    @Transactional
     public Cliente getCliente(int idUtente) {
         return clienteRepo.getCliente(idUtente);
     }
 
     @Transactional
     public boolean updateCliente(int idUtente, String field, String newValue) {
-        if (field.equals("password")) {
+        if ("password".equals(field)) {
             newValue = hashCalculator.calculateHash(newValue);
         }
         return clienteRepo.updateCliente(idUtente, field, newValue);
@@ -63,6 +62,7 @@ public class ClienteService {
 
     public ClienteResponse parseResponse(Cliente c) {
         return new ClienteResponse(
+                c.getId(),
                 c.getUsername(),
                 c.getEmail(),
                 c.getpIva(),
@@ -87,5 +87,19 @@ public class ClienteService {
 
     public Cliente getClienteByPod(String idPod){
         return clienteRepo.getClienteByPod(idPod);
+    }
+
+    public List<Cliente> getAllClienti() {
+        return clienteRepo.findAll().list();
+    }
+
+    @Transactional
+    public boolean deleteCliente(int id) {
+        Cliente c = clienteRepo.findById(id);
+        if (c == null) {
+            return false;
+        }
+        clienteRepo.delete(c);
+        return true;
     }
 }
