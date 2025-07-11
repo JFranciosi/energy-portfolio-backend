@@ -21,6 +21,8 @@ import javax.xml.parsers.ParserConfigurationException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -66,20 +68,31 @@ public class PodService {
             Document doc = b.parse(new ByteArrayInputStream(xmlData));
 
             NodeList lines = doc.getElementsByTagName("Line");
+            // REGEX PER TROVARE IL POD OVUNQUE
+            Pattern podPattern = Pattern.compile("IT[0-9A-Z]{13}");
+
             for (int i = 0; i < lines.getLength() && !exists; i++) {
                 Node node = lines.item(i);
                 if (node.getNodeType() != Node.ELEMENT_NODE) continue;
                 String txt = node.getTextContent();
 
-                // estrai POD
-                if (txt.contains("POD")) {
-                    idPod = ((Element) lines.item(i + 1)).getTextContent().trim();
+                // CERCA IL POD IN QUALUNQUE LINEA
+                Matcher matcher = podPattern.matcher(txt);
+                if (matcher.find()) {
+                    idPod = matcher.group();
+                } else if (i + 1 < lines.getLength()) {
+                    // fallback: anche la linea dopo
+                    String nextLine = ((Element) lines.item(i + 1)).getTextContent().trim();
+                    matcher = podPattern.matcher(nextLine);
+                    if (matcher.find()) idPod = matcher.group();
                 }
+
                 // esiste già?
-                if (podRepo.verificaSePodEsiste(idPod, idUtente) != null) {
+                if (!idPod.isEmpty() && podRepo.verificaSePodEsiste(idPod, idUtente) != null) {
                     exists = true;
                     return idPod;
                 }
+
                 // estrai fornitore
                 if (txt.contains("SEGNALAZIONE GUASTI ELETTRICITA")) {
                     fornitore = ((Element) lines.item(i + 2)).getTextContent().trim();
@@ -121,8 +134,10 @@ public class PodService {
                     }
                 }
             }
-            creaPod(vals, idUtente, idPod, fornitore, citta, cap, sede);
-
+            // SOLO SE È STATO TROVATO UN POD VALIDO
+            if (!idPod.isEmpty()) {
+                creaPod(vals, idUtente, idPod, fornitore, citta, cap, sede);
+            }
         } catch (ParserConfigurationException | SAXException | IOException e) {
             e.printStackTrace();
         }
@@ -137,9 +152,9 @@ public class PodService {
         p.setUtente(c);
         p.setId(idPod);
         p.setFornitore(fornitore);
-        p.setTensioneAlimentazione(vals.get(0));
-        p.setPotenzaImpegnata(vals.get(1));
-        p.setPotenzaDisponibile(vals.get(2));
+        p.setTensioneAlimentazione(vals.size() > 0 ? vals.get(0) : 0.0);
+        p.setPotenzaImpegnata(vals.size() > 1 ? vals.get(1) : 0.0);
+        p.setPotenzaDisponibile(vals.size() > 2 ? vals.get(2) : 0.0);
         p.setSede(sede);
         p.setNazione(nazione);
         p.setCap(cap);

@@ -37,5 +37,9 @@ public class Periodo {
     public void setAnno(String anno) {
         this.anno = anno;
     }
+
+    public Date getDataFine() {
+        return fine;
+    }
 }
 

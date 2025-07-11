@@ -318,4 +318,9 @@ public class BollettaRepo implements PanacheRepositoryBase<BollettaPod, Integer>
         List<String> podIds = pods.stream().map(Pod::getId).toList();
         return list("idPod IN ?1", podIds);
     }
+
+    public List<BollettaPod> findByUserId(int userId) {
+        return find("idUser", userId).list();
+    }
+
 }

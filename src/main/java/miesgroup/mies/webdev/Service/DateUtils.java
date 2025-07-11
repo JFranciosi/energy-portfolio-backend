@@ -80,4 +80,40 @@ public class DateUtils {
         }
         return lastDay;
     }
+
+    public static String getMonthNumber(String mese) {
+        if (mese == null || mese.isEmpty()) {
+            throw new IllegalArgumentException("Il mese non può essere null o vuoto");
+        }
+        // Converte il mese in maiuscolo per uniformità
+        String meseUpper = mese.toUpperCase(Locale.ITALIAN);
+        switch (meseUpper) {
+            case "GENNAIO":
+                return "01";
+            case "FEBBRAIO":
+                return "02";
+            case "MARZO":
+                return "03";
+            case "APRILE":
+                return "04";
+            case "MAGGIO":
+                return "05";
+            case "GIUGNO":
+                return "06";
+            case "LUGLIO":
+                return "07";
+            case "AGOSTO":
+                return "08";
+            case "SETTEMBRE":
+                return "09";
+            case "OTTOBRE":
+                return "10";
+            case "NOVEMBRE":
+                return "11";
+            case "DICEMBRE":
+                return "12";
+            default:
+                throw new IllegalArgumentException("Mese non valido: " + mese);
+        }
+    }
 }

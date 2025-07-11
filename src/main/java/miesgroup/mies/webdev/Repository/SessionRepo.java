@@ -59,5 +59,14 @@ public class SessionRepo implements PanacheRepositoryBase<Sessione, Integer> {
     public Optional<Sessione> getSessionById(Integer sessionCookie) {
         return find("id", sessionCookie).firstResultOptional();
     }
+
+    public Integer getUserIdBySessionId(int sessionId) {
+        Optional<Sessione> sessioneOpt = find("id", sessionId).firstResultOptional();
+        if (sessioneOpt.isPresent() && sessioneOpt.get().getUtente() != null) {
+            return sessioneOpt.get().getUtente().getId();
+        } else {
+            return null; // Sessione non trovata o utente mancante
+        }
+    }
 }
 

@@ -1,11 +1,9 @@
 package miesgroup.mies.webdev.Service;//package miesgroup.mies.webdev.Service;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import miesgroup.mies.webdev.Model.BollettaPod;
-import miesgroup.mies.webdev.Model.PDFFile;
-import miesgroup.mies.webdev.Model.Periodo;
-import miesgroup.mies.webdev.Model.Pod;
+import miesgroup.mies.webdev.Model.*;
 import miesgroup.mies.webdev.Repository.BollettaRepo;
 import miesgroup.mies.webdev.Repository.ClienteRepo;
 import miesgroup.mies.webdev.Repository.FileRepo;
@@ -19,6 +17,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.TextStyle;
@@ -64,6 +63,13 @@ public class FileService {
         this.podRepo = podRepo;
         this.clienteRepo = clienteRepo;
     }
+
+    @Inject
+    BudgetService budgetService;
+
+    @Inject
+    BudgetAllService budgetAllService;
+
 
     @Transactional
     public int saveFile(String fileName, byte[] fileData) throws SQLException {
@@ -119,7 +125,7 @@ public class FileService {
 
 
     @Transactional
-    public String extractValuesFromXmlA2A(byte[] xmlData, String idPod) {
+    public String extractValuesFromXmlA2A(byte[] xmlData, String idPod, int userId) {
         try {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             DocumentBuilder builder = factory.newDocumentBuilder();
@@ -141,7 +147,58 @@ public class FileService {
                 return null;
             }
 
-            fileRepo.saveDataToDatabase(lettureMese, spesePerMese, idPod, nomeBolletta, periodo, kWhPerMese);
+            // ** PATCH: ora passa userId! **
+            fileRepo.saveDataToDatabase(lettureMese, spesePerMese, idPod, nomeBolletta, periodo, kWhPerMese, userId);
+
+            // ——————— AGGIUNTA BUDGET E BUDGET_ALL ———————
+            String mese = DateUtils.getMonthFromDateLocalized(periodo.getDataFine()); // es: "giugno"
+            String anno = periodo.getAnno();
+            BollettaPod bolletta = bollettaRepo.find(
+                    "nomeBolletta = ?1 and idPod = ?2 and mese = ?3 and anno = ?4",
+                    nomeBolletta, idPod, mese, anno).firstResult();
+
+            if (bolletta != null) {
+                // Recupera il cliente dal POD
+                Pod pod = podRepo.findById(bolletta.getIdPod());
+                if (pod == null || pod.getUtente() == null) {
+                    throw new IllegalStateException("Impossibile trovare il cliente associato al POD " + bolletta.getIdPod());
+                }
+                Cliente cliente = pod.getUtente();
+
+                // --- Inserisci/aggiorna BUDGET
+                Budget budget = new Budget();
+                budget.setPodId(bolletta.getIdPod());
+                budget.setAnno(Integer.parseInt(bolletta.getAnno()));
+                budget.setMese(Integer.parseInt(DateUtils.getMonthNumber(mese))); // es. giugno -> 6
+                budget.setPrezzoEnergiaBase(bolletta.getSpeseEnergia() != null ? bolletta.getSpeseEnergia() : 0.0);
+                budget.setConsumiBase(bolletta.getTotAttiva() != null ? bolletta.getTotAttiva() : 0.0);
+                budget.setOneriBase(bolletta.getOneri() != null ? bolletta.getOneri() : 0.0);
+                budget.setPrezzoEnergiaPerc(0.0);
+                budget.setConsumiPerc(0.0);
+                budget.setOneriPerc(0.0);
+                budget.setCliente(cliente);
+                budgetService.creaBudget(budget);
+
+                // --- Inserisci/aggiorna BUDGET_ALL
+                BudgetAll budgetAll = new BudgetAll();
+                budgetAll.setIdPod("ALL");
+                budgetAll.setCliente(cliente);
+                budgetAll.setAnno(Integer.parseInt(bolletta.getAnno()));
+                budgetAll.setMese(Integer.parseInt(DateUtils.getMonthNumber(mese)));
+                // Tutti i BigDecimal non null
+                budgetAll.setPrezzoEnergiaBase(
+                        BigDecimal.valueOf(bolletta.getSpeseEnergia() != null ? bolletta.getSpeseEnergia() : 0.0));
+                budgetAll.setConsumiBase(
+                        BigDecimal.valueOf(bolletta.getTotAttiva() != null ? bolletta.getTotAttiva() : 0.0));
+                budgetAll.setOneriBase(
+                        BigDecimal.valueOf(bolletta.getOneri() != null ? bolletta.getOneri() : 0.0));
+                budgetAll.setPrezzoEnergiaPerc(BigDecimal.ZERO);
+                budgetAll.setConsumiPerc(BigDecimal.ZERO);
+                budgetAll.setOneriPerc(BigDecimal.ZERO);
+
+                budgetAllService.upsertAggregato(budgetAll);
+            }
+            // ——————— FINE AGGIUNTA ———————
 
             return nomeBolletta;
 
@@ -150,6 +207,7 @@ public class FileService {
             return null;
         }
     }
+
 
 
     @Transactional
@@ -348,7 +406,6 @@ public class FileService {
         System.out.println("Estrazione spese: " + spesePerMese);
         return processSpesePerMese(spesePerMese);
     }
-
 
 
     private Map<String, Map<String, Double>> extractKwhPerMese(Document document) {
@@ -937,4 +994,9 @@ public class FileService {
         // Una volta terminato il parsing, andiamo a processare e sommare i dati
         return processSpesePerMese(ricalcoliPerMese);
     }
+
+    public List<BollettaPod> getDatiByUserId(int userId) {
+        return bollettaRepo.findByUserId(userId);
+    }
+
 }

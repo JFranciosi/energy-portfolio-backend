@@ -3,11 +3,13 @@ package miesgroup.mies.webdev.Repository;
 import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
+import miesgroup.mies.webdev.Model.BollettaPod;
 import miesgroup.mies.webdev.Model.Cliente;
 import miesgroup.mies.webdev.Model.Pod;
 import miesgroup.mies.webdev.Service.LoggerService;
 
 import javax.sql.DataSource;
+import java.util.List;
 import java.util.Optional;
 
 @ApplicationScoped

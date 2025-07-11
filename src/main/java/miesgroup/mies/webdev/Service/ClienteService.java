@@ -2,6 +2,7 @@ package miesgroup.mies.webdev.Service;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
+import miesgroup.mies.webdev.Model.BollettaPod;
 import miesgroup.mies.webdev.Model.Cliente;
 import miesgroup.mies.webdev.Repository.ClienteRepo;
 import miesgroup.mies.webdev.Rest.Model.ClienteRequest;
