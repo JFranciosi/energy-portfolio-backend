@@ -4,11 +4,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import miesgroup.mies.webdev.Model.*;
-import miesgroup.mies.webdev.Repository.BollettaRepo;
-import miesgroup.mies.webdev.Repository.ClienteRepo;
-import miesgroup.mies.webdev.Repository.FileRepo;
-import miesgroup.mies.webdev.Repository.PodRepo;
+import miesgroup.mies.webdev.Repository.*;
 import miesgroup.mies.webdev.Rest.Model.BollettaPodResponse;
+import miesgroup.mies.webdev.Rest.Model.FileDto;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 
@@ -69,6 +67,9 @@ public class FileService {
 
     @Inject
     BudgetAllService budgetAllService;
+
+    @Inject
+    SessionRepo sessionRepo;
 
 
     @Transactional
@@ -995,8 +996,28 @@ public class FileService {
         return processSpesePerMese(ricalcoliPerMese);
     }
 
-    public List<BollettaPod> getDatiByUserId(int userId) {
-        return bollettaRepo.findByUserId(userId);
+    @Transactional
+    public List<FileDto> getDatiByUserId(int userId) {
+        // 1. Prendo i soli id dei Pod il cui utente ha quell’id
+        List<String> podIds = podRepo.getEntityManager()
+                .createQuery(
+                        "SELECT p.id FROM Pod p WHERE p.utente.id = :userId",
+                        String.class
+                )
+                .setParameter("userId", userId)
+                .getResultList();
+
+        if (podIds == null || podIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 2. Cerco tutti i PDFFile che hanno idPod in quella lista
+        List<PDFFile> files = PDFFile.find("idPod in ?1", podIds).list();
+
+        // 3. Mappo a DTO
+        return files.stream()
+                .map(FileDto::new)
+                .collect(Collectors.toList());
     }
 
 }

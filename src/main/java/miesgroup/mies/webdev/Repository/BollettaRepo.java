@@ -3,10 +3,7 @@ package miesgroup.mies.webdev.Repository;
 
 import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
 import jakarta.enterprise.context.ApplicationScoped;
-import miesgroup.mies.webdev.Model.BollettaPod;
-import miesgroup.mies.webdev.Model.Costi;
-import miesgroup.mies.webdev.Model.Periodo;
-import miesgroup.mies.webdev.Model.Pod;
+import miesgroup.mies.webdev.Model.*;
 
 import java.util.List;
 import java.util.Map;
@@ -318,9 +315,4 @@ public class BollettaRepo implements PanacheRepositoryBase<BollettaPod, Integer>
         List<String> podIds = pods.stream().map(Pod::getId).toList();
         return list("idPod IN ?1", podIds);
     }
-
-    public List<BollettaPod> findByUserId(int userId) {
-        return find("idUser", userId).list();
-    }
-
 }

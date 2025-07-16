@@ -20,10 +20,6 @@ public class BollettaPod extends PanacheEntityBase {
     @OneToMany(mappedBy = "bolletta", cascade = CascadeType.ALL)
     private List<CostoArticolo> costiArticolo;
 
-    // AGGIUNGI QUI:
-    @Column(name = "id_user", nullable = false)
-    private int idUser;
-
     @Column(name = "id_pod", nullable = false)
     private String idPod;
 
@@ -223,9 +219,6 @@ public class BollettaPod extends PanacheEntityBase {
     private String meseAnno;
 
     // GETTER e SETTER
-
-    public int getIdUser() { return idUser; }
-    public void setIdUser(int idUser) { this.idUser = idUser; }
 
     public String getMeseAnno() {
         return meseAnno;
@@ -771,4 +764,7 @@ public class BollettaPod extends PanacheEntityBase {
         this.costiArticolo = costiArticolo;
     }
 
+    public Integer getIdFile() {
+        return id;
+    }
 }

@@ -8,10 +8,8 @@ import miesgroup.mies.webdev.Model.PDFFile;
 import miesgroup.mies.webdev.Model.Periodo;
 
 import javax.sql.DataSource;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.time.LocalDateTime;
+import java.util.*;
 
 @ApplicationScoped
 public class FileRepo implements PanacheRepositoryBase<PDFFile, Integer> {
@@ -31,11 +29,15 @@ public class FileRepo implements PanacheRepositoryBase<PDFFile, Integer> {
             throw new RuntimeException("File name already exists in the database");
         }
 
+        // Imposta la data di upload corrente
+        pdfFile.setUploadDate(LocalDateTime.now());
+
         // Persist the new file
         pdfFile.persist();
 
         return pdfFile.getIdFile(); // Returns the auto-generated ID
     }
+
 
 
     public void abbinaPod(int idFile, String idPod) {
@@ -60,7 +62,7 @@ public class FileRepo implements PanacheRepositoryBase<PDFFile, Integer> {
             String nomeBolletta,
             Periodo periodo,
             Map<String, Map<String, Double>> kWhPerMese,
-            int userId // <-- AGGIUNTO!
+            int userId // <-- Puoi lasciarlo come parametro se serve per logging o altre logiche!
     ) {
         for (Map.Entry<String, Map<String, Map<String, Integer>>> meseEntry : lettureMese.entrySet()) {
             String mese = meseEntry.getKey();
@@ -122,8 +124,9 @@ public class FileRepo implements PanacheRepositoryBase<PDFFile, Integer> {
             }
 
             // --- LOG per debug ---
-            System.out.println("Sto salvando la bolletta con idPod: " + idPod + ", idUser: " + userId +
-                    ", nomeBolletta: " + nomeBolletta + " - mese: " + mese + " - anno: " + periodo.getAnno());
+            System.out.println("Sto salvando la bolletta con idPod: " + idPod +
+                    ", nomeBolletta: " + nomeBolletta + " - mese: " + mese + " - anno: " + periodo.getAnno() +
+                    " (userId: " + userId + ")");
 
             // 4. Creazione e salvataggio dell'entità BollettaPod
             BollettaPod bolletta = new BollettaPod();
@@ -181,24 +184,49 @@ public class FileRepo implements PanacheRepositoryBase<PDFFile, Integer> {
             bolletta.setF2PerditeKwh(f2PerditeKwh);
             bolletta.setF3PerditeKwh(f3PerditeKwh);
 
-            // PATCH FINALE: set idUser
-            bolletta.setIdUser(userId);
+            // -- PATCH: NON mettere idUser! --
+            // -- NON fare bolletta.setIdUser(userId); --
 
+            // Ora persisti la bolletta (o aggiungi la logica di inserimento nel DB)
             bollettaRepo.persist(bolletta);
-            System.out.println("Bolletta salvata con idPod: " + bolletta.getIdPod() + ", idUser: " + bolletta.getIdUser());
+
+            System.out.println("Bolletta salvata con idPod: " + bolletta.getIdPod() + " (userId: " + userId + ")");
         }
     }
 
-
-
+    // Utility per capitalizzare la prima lettera delle prime tre lettere del mese (opzionale)
     private String capitalizeFirstThree(String mese) {
-        if (mese == null || mese.length() < 3) return mese;
-        String firstThree = mese.substring(0, 3).toLowerCase();
-        return firstThree.substring(0, 1).toUpperCase() + firstThree.substring(1);
+        if (mese == null || mese.isEmpty()) return mese;
+        String firstThree = mese.length() > 3 ? mese.substring(0, 3) : mese;
+        return firstThree.substring(0, 1).toUpperCase() + firstThree.substring(1).toLowerCase();
     }
 
     private Double getCategoriaConsumo(Map<String, Map<String, Integer>> categorie, String categoria, String fascia) {
         return categorie.getOrDefault(categoria, Collections.emptyMap()).getOrDefault(fascia, 0).doubleValue();
     }
 
+    public List<PDFFile> findByUserId(int userId) {
+        // Recupera tutte le bollette dell'utente
+        List<BollettaPod> bolletteUtente = bollettaRepo.find("idUtente", userId).list();
+
+        // Se non ci sono bollette, ritorna lista vuota
+        if (bolletteUtente == null || bolletteUtente.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // Ottieni tutti gli idFile associati alle bollette
+        List<Integer> idFiles = new ArrayList<>();
+        for (BollettaPod bolletta : bolletteUtente) {
+            if (bolletta.getIdFile() != null) {
+                idFiles.add(bolletta.getIdFile());
+            }
+        }
+
+        // Recupera i file PDF corrispondenti agli idFile
+        if (idFiles.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        return find("idFile IN ?1", idFiles).list();
+    }
 }
