@@ -1,46 +1,89 @@
 package miesgroup.mies.webdev.Rest.Model;
 
-import java.math.BigDecimal;
-
 public class BudgetAllDto {
-    private Long utenteId;
+    private long utenteId;
     private Integer anno;
     private Integer mese;
 
-    private BigDecimal prezzoEnergiaBase;
-    private BigDecimal consumiBase;
-    private BigDecimal oneriBase;
+    private Double prezzoEnergiaBase;
+    private Double consumiBase;
+    private Double oneriBase;
 
-    private BigDecimal prezzoEnergiaPerc;
-    private BigDecimal consumiPerc;
-    private BigDecimal oneriPerc;
+    private Double prezzoEnergiaPerc;
+    private Double consumiPerc;
+    private Double oneriPerc;
 
     public BudgetAllDto() {}
 
-    public Long getUtenteId() { return utenteId; }
-    public void setUtenteId(Long utenteId) { this.utenteId = utenteId; }
+    public Long getUtenteId() {
+        return utenteId;
+    }
 
-    public Integer getAnno() { return anno; }
-    public void setAnno(Integer anno) { this.anno = anno; }
+    public void setUtenteId(Long utenteId) {
+        this.utenteId = utenteId;
+    }
 
-    public Integer getMese() { return mese; }
-    public void setMese(Integer mese) { this.mese = mese; }
+    public Integer getAnno() {
+        return anno;
+    }
 
-    public BigDecimal getPrezzoEnergiaBase() { return prezzoEnergiaBase; }
-    public void setPrezzoEnergiaBase(BigDecimal prezzoEnergiaBase) { this.prezzoEnergiaBase = prezzoEnergiaBase; }
+    public void setAnno(Integer anno) {
+        this.anno = anno;
+    }
 
-    public BigDecimal getConsumiBase() { return consumiBase; }
-    public void setConsumiBase(BigDecimal consumiBase) { this.consumiBase = consumiBase; }
+    public Integer getMese() {
+        return mese;
+    }
 
-    public BigDecimal getOneriBase() { return oneriBase; }
-    public void setOneriBase(BigDecimal oneriBase) { this.oneriBase = oneriBase; }
+    public void setMese(Integer mese) {
+        this.mese = mese;
+    }
 
-    public BigDecimal getPrezzoEnergiaPerc() { return prezzoEnergiaPerc; }
-    public void setPrezzoEnergiaPerc(BigDecimal prezzoEnergiaPerc) { this.prezzoEnergiaPerc = prezzoEnergiaPerc; }
+    public Double getPrezzoEnergiaBase() {
+        return prezzoEnergiaBase;
+    }
 
-    public BigDecimal getConsumiPerc() { return consumiPerc; }
-    public void setConsumiPerc(BigDecimal consumiPerc) { this.consumiPerc = consumiPerc; }
+    public void setPrezzoEnergiaBase(Double prezzoEnergiaBase) {
+        this.prezzoEnergiaBase = prezzoEnergiaBase;
+    }
 
-    public BigDecimal getOneriPerc() { return oneriPerc; }
-    public void setOneriPerc(BigDecimal oneriPerc) { this.oneriPerc = oneriPerc; }
+    public Double getConsumiBase() {
+        return consumiBase;
+    }
+
+    public void setConsumiBase(Double consumiBase) {
+        this.consumiBase = consumiBase;
+    }
+
+    public Double getOneriBase() {
+        return oneriBase;
+    }
+
+    public void setOneriBase(Double oneriBase) {
+        this.oneriBase = oneriBase;
+    }
+
+    public Double getPrezzoEnergiaPerc() {
+        return prezzoEnergiaPerc;
+    }
+
+    public void setPrezzoEnergiaPerc(Double prezzoEnergiaPerc) {
+        this.prezzoEnergiaPerc = prezzoEnergiaPerc;
+    }
+
+    public Double getConsumiPerc() {
+        return consumiPerc;
+    }
+
+    public void setConsumiPerc(Double consumiPerc) {
+        this.consumiPerc = consumiPerc;
+    }
+
+    public Double getOneriPerc() {
+        return oneriPerc;
+    }
+
+    public void setOneriPerc(Double oneriPerc) {
+        this.oneriPerc = oneriPerc;
+    }
 }

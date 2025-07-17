@@ -166,38 +166,43 @@ public class FileService {
                 }
                 Cliente cliente = pod.getUtente();
 
-                // --- Inserisci/aggiorna BUDGET
+// --- Inserisci/aggiorna BUDGET
                 Budget budget = new Budget();
                 budget.setPodId(bolletta.getIdPod());
                 budget.setAnno(Integer.parseInt(bolletta.getAnno()));
                 budget.setMese(Integer.parseInt(DateUtils.getMonthNumber(mese))); // es. giugno -> 6
                 budget.setPrezzoEnergiaBase(bolletta.getSpeseEnergia() != null ? bolletta.getSpeseEnergia() : 0.0);
-                budget.setConsumiBase(bolletta.getTotAttiva() != null ? bolletta.getTotAttiva() : 0.0);
-                budget.setOneriBase(bolletta.getOneri() != null ? bolletta.getOneri() : 0.0);
+                budget.setConsumiBase(bolletta.getTotAttiva()      != null ? bolletta.getTotAttiva()     : 0.0);
+                budget.setOneriBase(bolletta.getOneri()            != null ? bolletta.getOneri()         : 0.0);
                 budget.setPrezzoEnergiaPerc(0.0);
                 budget.setConsumiPerc(0.0);
                 budget.setOneriPerc(0.0);
                 budget.setCliente(cliente);
                 budgetService.creaBudget(budget);
 
-                // --- Inserisci/aggiorna BUDGET_ALL
+// --- Inserisci/aggiorna BUDGET_ALL
                 BudgetAll budgetAll = new BudgetAll();
                 budgetAll.setIdPod("ALL");
                 budgetAll.setCliente(cliente);
                 budgetAll.setAnno(Integer.parseInt(bolletta.getAnno()));
-                budgetAll.setMese(Integer.parseInt(DateUtils.getMonthNumber(mese)));
-                // Tutti i BigDecimal non null
+                budgetAll.setMese(Integer.parseInt(DateUtils.getMonthNumber(mese))); // es. 6 = giugno
+
+// qui TUTTI i campi base e perc diventano Double
                 budgetAll.setPrezzoEnergiaBase(
-                        BigDecimal.valueOf(bolletta.getSpeseEnergia() != null ? bolletta.getSpeseEnergia() : 0.0));
+                        bolletta.getSpeseEnergia() != null ? bolletta.getSpeseEnergia() : 0.0
+                );
                 budgetAll.setConsumiBase(
-                        BigDecimal.valueOf(bolletta.getTotAttiva() != null ? bolletta.getTotAttiva() : 0.0));
+                        bolletta.getTotAttiva() != null ? bolletta.getTotAttiva() : 0.0
+                );
                 budgetAll.setOneriBase(
-                        BigDecimal.valueOf(bolletta.getOneri() != null ? bolletta.getOneri() : 0.0));
-                budgetAll.setPrezzoEnergiaPerc(BigDecimal.ZERO);
-                budgetAll.setConsumiPerc(BigDecimal.ZERO);
-                budgetAll.setOneriPerc(BigDecimal.ZERO);
+                        bolletta.getOneri() != null ? bolletta.getOneri() : 0.0
+                );
+                budgetAll.setPrezzoEnergiaPerc(0.0);
+                budgetAll.setConsumiPerc(0.0);
+                budgetAll.setOneriPerc(0.0);
 
                 budgetAllService.upsertAggregato(budgetAll);
+
             }
             // ——————— FINE AGGIUNTA ———————
 
