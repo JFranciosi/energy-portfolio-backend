@@ -4,11 +4,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import miesgroup.mies.webdev.Model.*;
-import miesgroup.mies.webdev.Repository.BollettaRepo;
-import miesgroup.mies.webdev.Repository.ClienteRepo;
-import miesgroup.mies.webdev.Repository.FileRepo;
-import miesgroup.mies.webdev.Repository.PodRepo;
+import miesgroup.mies.webdev.Repository.*;
 import miesgroup.mies.webdev.Rest.Model.BollettaPodResponse;
+import miesgroup.mies.webdev.Rest.Model.FileDto;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 
@@ -16,6 +14,7 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -31,6 +30,9 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.StringWriter;
 
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -69,6 +71,9 @@ public class FileService {
 
     @Inject
     BudgetAllService budgetAllService;
+
+    @Inject
+    SessionRepo sessionRepo;
 
 
     @Transactional
@@ -165,38 +170,43 @@ public class FileService {
                 }
                 Cliente cliente = pod.getUtente();
 
-                // --- Inserisci/aggiorna BUDGET
+// --- Inserisci/aggiorna BUDGET
                 Budget budget = new Budget();
                 budget.setPodId(bolletta.getIdPod());
                 budget.setAnno(Integer.parseInt(bolletta.getAnno()));
                 budget.setMese(Integer.parseInt(DateUtils.getMonthNumber(mese))); // es. giugno -> 6
                 budget.setPrezzoEnergiaBase(bolletta.getSpeseEnergia() != null ? bolletta.getSpeseEnergia() : 0.0);
-                budget.setConsumiBase(bolletta.getTotAttiva() != null ? bolletta.getTotAttiva() : 0.0);
-                budget.setOneriBase(bolletta.getOneri() != null ? bolletta.getOneri() : 0.0);
+                budget.setConsumiBase(bolletta.getTotAttiva()      != null ? bolletta.getTotAttiva()     : 0.0);
+                budget.setOneriBase(bolletta.getOneri()            != null ? bolletta.getOneri()         : 0.0);
                 budget.setPrezzoEnergiaPerc(0.0);
                 budget.setConsumiPerc(0.0);
                 budget.setOneriPerc(0.0);
                 budget.setCliente(cliente);
                 budgetService.creaBudget(budget);
 
-                // --- Inserisci/aggiorna BUDGET_ALL
+// --- Inserisci/aggiorna BUDGET_ALL
                 BudgetAll budgetAll = new BudgetAll();
                 budgetAll.setIdPod("ALL");
                 budgetAll.setCliente(cliente);
                 budgetAll.setAnno(Integer.parseInt(bolletta.getAnno()));
-                budgetAll.setMese(Integer.parseInt(DateUtils.getMonthNumber(mese)));
-                // Tutti i BigDecimal non null
+                budgetAll.setMese(Integer.parseInt(DateUtils.getMonthNumber(mese))); // es. 6 = giugno
+
+// qui TUTTI i campi base e perc diventano Double
                 budgetAll.setPrezzoEnergiaBase(
-                        BigDecimal.valueOf(bolletta.getSpeseEnergia() != null ? bolletta.getSpeseEnergia() : 0.0));
+                        bolletta.getSpeseEnergia() != null ? bolletta.getSpeseEnergia() : 0.0
+                );
                 budgetAll.setConsumiBase(
-                        BigDecimal.valueOf(bolletta.getTotAttiva() != null ? bolletta.getTotAttiva() : 0.0));
+                        bolletta.getTotAttiva() != null ? bolletta.getTotAttiva() : 0.0
+                );
                 budgetAll.setOneriBase(
-                        BigDecimal.valueOf(bolletta.getOneri() != null ? bolletta.getOneri() : 0.0));
-                budgetAll.setPrezzoEnergiaPerc(BigDecimal.ZERO);
-                budgetAll.setConsumiPerc(BigDecimal.ZERO);
-                budgetAll.setOneriPerc(BigDecimal.ZERO);
+                        bolletta.getOneri() != null ? bolletta.getOneri() : 0.0
+                );
+                budgetAll.setPrezzoEnergiaPerc(0.0);
+                budgetAll.setConsumiPerc(0.0);
+                budgetAll.setOneriPerc(0.0);
 
                 budgetAllService.upsertAggregato(budgetAll);
+
             }
             // ——————— FINE AGGIUNTA ———————
 
@@ -993,8 +1003,92 @@ public class FileService {
         return processSpesePerMese(ricalcoliPerMese);
     }
 
-    public List<BollettaPod> getDatiByUserId(int userId) {
-        return bollettaRepo.findByUserId(userId);
+    @Transactional
+    public List<FileDto> getDatiByUserId(int userId) {
+        // 1. Prendo i soli id dei Pod il cui utente ha quell’id
+        List<String> podIds = podRepo.getEntityManager()
+                .createQuery(
+                        "SELECT p.id FROM Pod p WHERE p.utente.id = :userId",
+                        String.class
+                )
+                .setParameter("userId", userId)
+                .getResultList();
+
+        if (podIds == null || podIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 2. Cerco tutti i PDFFile che hanno idPod in quella lista
+        List<PDFFile> files = PDFFile.find("idPod in ?1", podIds).list();
+
+        // 3. Mappo a DTO
+        return files.stream()
+                .map(FileDto::new)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public byte[] generateExcelFromPdfData(byte[] pdfData) throws IOException {
+        // 1) Estrai testo e genera XML (come fai già)
+        Document xmlDoc;
+        try {
+            xmlDoc = convertPdfToXml(pdfData);
+        } catch (Exception e) {
+            throw new IOException("Errore durante conversione PDF-XML", e);
+        }
+
+        // 2) Estrai i dati significativi
+        Map<String, Map<String, Double>> spesePerMese = extractSpesePerMese(xmlDoc);
+        Map<String, Map<String, Double>> kwhPerMese = extractKwhPerMese(xmlDoc);
+
+        // 3) Crea Excel e popola dati
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("Bolletta");
+
+            // Crea intestazioni
+            Row header = sheet.createRow(0);
+            header.createCell(0).setCellValue("Mese");
+            header.createCell(1).setCellValue("Categoria");
+            header.createCell(2).setCellValue("Spesa (€)");
+            header.createCell(3).setCellValue("Consumo (kWh)");
+
+            int rowNum = 1;
+
+            // Usa tutti i mesi unici da spese e kwh
+            Set<String> mesi = new HashSet<>();
+            mesi.addAll(spesePerMese.keySet());
+            mesi.addAll(kwhPerMese.keySet());
+
+            for (String mese : mesi) {
+                Map<String, Double> speseMap = spesePerMese.getOrDefault(mese, Collections.emptyMap());
+                Map<String, Double> kwhMap = kwhPerMese.getOrDefault(mese, Collections.emptyMap());
+
+                // Ottieni tutte le categorie uniche
+                Set<String> categorie = new HashSet<>();
+                categorie.addAll(speseMap.keySet());
+                categorie.addAll(kwhMap.keySet());
+
+                for (String categoria : categorie) {
+                    Row row = sheet.createRow(rowNum++);
+                    row.createCell(0).setCellValue(mese);
+                    row.createCell(1).setCellValue(categoria);
+                    row.createCell(2).setCellValue(speseMap.getOrDefault(categoria, 0.0));
+                    row.createCell(3).setCellValue(kwhMap.getOrDefault(categoria, 0.0));
+                }
+            }
+
+            // Auto-size colonne per leggibilità
+            for (int i = 0; i <= 3; i++) {
+                sheet.autoSizeColumn(i);
+            }
+
+            // Scrivi workbook in byte[]
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            workbook.write(bos);
+            bos.close();
+
+            return bos.toByteArray();
+        }
     }
 
 }

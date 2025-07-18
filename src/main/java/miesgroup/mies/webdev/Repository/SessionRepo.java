@@ -2,12 +2,18 @@ package miesgroup.mies.webdev.Repository;
 
 import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import miesgroup.mies.webdev.Model.BollettaPod;
 import miesgroup.mies.webdev.Model.Cliente;
+import miesgroup.mies.webdev.Model.Pod;
 import miesgroup.mies.webdev.Model.Sessione;
 
 import javax.sql.DataSource;
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class SessionRepo implements PanacheRepositoryBase<Sessione, Integer> {
@@ -20,6 +26,12 @@ public class SessionRepo implements PanacheRepositoryBase<Sessione, Integer> {
         this.clienteRepo = clienteRepo;
         this.sessionRepo = sessionRepo;
     }
+
+    @Inject
+    PodRepo podRepo;
+
+    @Inject
+    BollettaRepo bollettaRepo;
 
 
     public int insertSession(int idUtente) {
@@ -68,5 +80,30 @@ public class SessionRepo implements PanacheRepositoryBase<Sessione, Integer> {
             return null; // Sessione non trovata o utente mancante
         }
     }
+
+    public List<BollettaPod> findByUserId(int userId) {
+        // 1. Recupera tutti i POD dell'utente
+        List<Pod> podsUtente = podRepo.find("utente.id", userId).list();
+
+        // 2. Se non ci sono POD, ritorna lista vuota
+        if (podsUtente == null || podsUtente.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // 3. Ottieni tutti gli idPod
+        List<String> idPods = podsUtente.stream()
+                .map(Pod::getId)
+                .collect(Collectors.toList());
+
+        // 4. Recupera tutte le bollette per questi idPod
+        if (idPods.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // Questo metodo dipende dalla tua implementazione del repo,
+        // ma in Hibernate Panache puoi fare così:
+        return bollettaRepo.list("idPod in ?1", idPods);
+    }
+
 }
 

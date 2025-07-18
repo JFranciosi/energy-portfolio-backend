@@ -2,7 +2,6 @@ package miesgroup.mies.webdev.Model;
 
 import jakarta.persistence.*;
 import java.io.Serializable;
-import java.math.BigDecimal;
 
 @Entity
 @Table(name = "budget_all",
@@ -23,23 +22,24 @@ public class BudgetAll implements Serializable {
     @Column(nullable = false)
     private Integer mese;
 
-    @Column(name = "prezzo_energia_base", nullable = false, precision = 10, scale = 4)
-    private BigDecimal prezzoEnergiaBase;
+    // Usando Double, precision/scale non servono più:
+    @Column(name = "prezzo_energia_base", nullable = false)
+    private Double prezzoEnergiaBase;
 
-    @Column(name = "consumi_base", nullable = false, precision = 12, scale = 2)
-    private BigDecimal consumiBase;
+    @Column(name = "consumi_base", nullable = false)
+    private Double consumiBase;
 
-    @Column(name = "oneri_base", nullable = false, precision = 12, scale = 2)
-    private BigDecimal oneriBase;
+    @Column(name = "oneri_base", nullable = false)
+    private Double oneriBase;
 
-    @Column(name = "prezzo_energia_perc", nullable = false, precision = 5, scale = 2)
-    private BigDecimal prezzoEnergiaPerc;
+    @Column(name = "prezzo_energia_perc", nullable = false)
+    private Double prezzoEnergiaPerc;
 
-    @Column(name = "consumi_perc", nullable = false, precision = 5, scale = 2)
-    private BigDecimal consumiPerc;
+    @Column(name = "consumi_perc", nullable = false)
+    private Double consumiPerc;
 
-    @Column(name = "oneri_perc", nullable = false, precision = 5, scale = 2)
-    private BigDecimal oneriPerc;
+    @Column(name = "oneri_perc", nullable = false)
+    private Double oneriPerc;
 
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "id_utente", referencedColumnName = "Id_Utente")
@@ -59,23 +59,23 @@ public class BudgetAll implements Serializable {
     public Integer getMese() { return mese; }
     public void setMese(Integer mese) { this.mese = mese; }
 
-    public BigDecimal getPrezzoEnergiaBase() { return prezzoEnergiaBase; }
-    public void setPrezzoEnergiaBase(BigDecimal prezzoEnergiaBase) { this.prezzoEnergiaBase = prezzoEnergiaBase; }
+    public Double getPrezzoEnergiaBase() { return prezzoEnergiaBase; }
+    public void setPrezzoEnergiaBase(Double prezzoEnergiaBase) { this.prezzoEnergiaBase = prezzoEnergiaBase; }
 
-    public BigDecimal getConsumiBase() { return consumiBase; }
-    public void setConsumiBase(BigDecimal consumiBase) { this.consumiBase = consumiBase; }
+    public Double getConsumiBase() { return consumiBase; }
+    public void setConsumiBase(Double consumiBase) { this.consumiBase = consumiBase; }
 
-    public BigDecimal getOneriBase() { return oneriBase; }
-    public void setOneriBase(BigDecimal oneriBase) { this.oneriBase = oneriBase; }
+    public Double getOneriBase() { return oneriBase; }
+    public void setOneriBase(Double oneriBase) { this.oneriBase = oneriBase; }
 
-    public BigDecimal getPrezzoEnergiaPerc() { return prezzoEnergiaPerc; }
-    public void setPrezzoEnergiaPerc(BigDecimal prezzoEnergiaPerc) { this.prezzoEnergiaPerc = prezzoEnergiaPerc; }
+    public Double getPrezzoEnergiaPerc() { return prezzoEnergiaPerc; }
+    public void setPrezzoEnergiaPerc(Double prezzoEnergiaPerc) { this.prezzoEnergiaPerc = prezzoEnergiaPerc; }
 
-    public BigDecimal getConsumiPerc() { return consumiPerc; }
-    public void setConsumiPerc(BigDecimal consumiPerc) { this.consumiPerc = consumiPerc; }
+    public Double getConsumiPerc() { return consumiPerc; }
+    public void setConsumiPerc(Double consumiPerc) { this.consumiPerc = consumiPerc; }
 
-    public BigDecimal getOneriPerc() { return oneriPerc; }
-    public void setOneriPerc(BigDecimal oneriPerc) { this.oneriPerc = oneriPerc; }
+    public Double getOneriPerc() { return oneriPerc; }
+    public void setOneriPerc(Double oneriPerc) { this.oneriPerc = oneriPerc; }
 
     public Cliente getCliente() { return cliente; }
     public void setCliente(Cliente cliente) { this.cliente = cliente; }

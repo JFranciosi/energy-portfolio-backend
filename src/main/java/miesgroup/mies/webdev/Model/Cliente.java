@@ -60,6 +60,10 @@ public class Cliente extends PanacheEntityBase {
     @Column(name = "checkEmail")
     private Boolean checkEmail;
 
+    // NUOVO CAMPO per "Resta Connesso"
+    @Column(name = "keep_logged", nullable = false)
+    private Boolean keepLogged = false;
+
     public Cliente() {
     }
 
@@ -193,12 +197,19 @@ public class Cliente extends PanacheEntityBase {
         this.fatturatoAnnuo = fatturatoAnnuo;
     }
 
-
     public Boolean getCheckEmail() {
         return checkEmail;
     }
 
     public void setCheckEmail(Boolean checkEmail) {
         this.checkEmail = checkEmail;
+    }
+
+    public Boolean getKeepLogged() {
+        return keepLogged;
+    }
+
+    public void setKeepLogged(Boolean keepLogged) {
+        this.keepLogged = keepLogged;
     }
 }

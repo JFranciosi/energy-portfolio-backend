@@ -3,6 +3,8 @@ package miesgroup.mies.webdev.Model;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "filepdf") // Nome corretto della tabella
 public class PDFFile extends PanacheEntityBase {
@@ -19,10 +21,18 @@ public class PDFFile extends PanacheEntityBase {
     @Column(name = "file_Data", columnDefinition = "LONGBLOB")
     private byte[] fileData;
 
+    @Column(name = "upload_date")
+    private LocalDateTime uploadDate;
+
     @Column(name = "id_pod")
     private String idPod;
 
     // Getters e Setters
+
+    public LocalDateTime getUploadDate() { return uploadDate; }
+
+    public void setUploadDate(LocalDateTime uploadDate) { this.uploadDate = uploadDate; }
+
     public Integer getIdFile() {
         return idFile;
     }
