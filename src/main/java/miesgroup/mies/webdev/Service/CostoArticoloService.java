@@ -8,7 +8,6 @@ import miesgroup.mies.webdev.Rest.Model.CostoArticoloResponse;
 import org.hibernate.SessionException;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class CostoArticoloService {
@@ -28,7 +27,7 @@ public class CostoArticoloService {
     }
 
 
-    public void calcolaCostiArticoli(List<Costi> articoli, BollettaPod b, Double maggiorePotenza, String categoriaArticolo) {
+    public void calcolaCostiArticoli(List<dettaglioCosto> articoli, BollettaPod b, Double maggiorePotenza, String categoriaArticolo) {
         // Calcola i costi degli articoli
         articoli.forEach(articolo -> {
             Double costoArticolo = switch (articolo.getUnitaMisura()) {
@@ -46,7 +45,7 @@ public class CostoArticoloService {
                 // Calcola il costo dell'articolo
             };
             // Salva il costo dell'articolo
-            costoArticoloRepo.aggiungiCostoArticolo(b, costoArticolo, articolo.getDescrizione(), categoriaArticolo);
+            costoArticoloRepo.aggiungiCostoArticolo(b, costoArticolo, articolo.getItem(), categoriaArticolo);
         });
     }
 

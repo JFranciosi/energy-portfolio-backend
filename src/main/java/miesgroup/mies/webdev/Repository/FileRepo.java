@@ -149,7 +149,7 @@ public class FileRepo implements PanacheRepositoryBase<PDFFile, Integer> {
             bolletta.setTotAttiva(totAttiva);
             bolletta.setTotReattiva(totReattiva);
 
-            // Costi (in €)
+            // dettaglioCosto (in €)
             bolletta.setSpeseEnergia(spesaEnergia);
             bolletta.setTrasporti(spesaTrasporto);
             bolletta.setOneri(oneri);
@@ -157,7 +157,7 @@ public class FileRepo implements PanacheRepositoryBase<PDFFile, Integer> {
             bolletta.setDispacciamento(dispacciamento);
             bolletta.setAltro(altro);
 
-            // Costi specifici per consumo (in €)
+            // dettaglioCosto specifici per consumo (in €)
             bolletta.setF0Euro(f0Euro);
             bolletta.setF1Euro(f1Euro);
             bolletta.setF2Euro(f2Euro);

@@ -1,29 +1,31 @@
 package miesgroup.mies.webdev.Rest.Model;
 
-import miesgroup.mies.webdev.Model.Costi;
+import miesgroup.mies.webdev.Model.dettaglioCosto;
 
-public class CostiDTO {
-    public String descrizione;
+public class dettaglioCostoDTO {
+    public Integer id;
+    public String item;
     public String unitaMisura;
-    public Integer trimestre;
-    public String anno;
+    public Integer modality;
+    public Integer checkModality;
     public Double costo;
     public String categoria;
     public String intervalloPotenza;
     public String classeAgevolazione;
     public String annoRiferimento;
-    public Integer id;
+    public String itemDescription;
 
-    public CostiDTO(Costi entity) {
-        this.descrizione = entity.getDescrizione();
+    public dettaglioCostoDTO(dettaglioCosto entity) {
+        this.id = entity.getId();
+        this.item = entity.getItem();
         this.unitaMisura = entity.getUnitaMisura();
-        this.trimestre = entity.getTrimestre();
-        this.anno = entity.getAnno();
+        this.modality = entity.getModality();
+        this.checkModality = entity.getCheckModality();
         this.costo = entity.getCosto();
         this.categoria = entity.getCategoria();
         this.intervalloPotenza = entity.getIntervalloPotenza();
         this.classeAgevolazione = entity.getClasseAgevolazione();
         this.annoRiferimento = entity.getAnnoRiferimento();
-        this.id = entity.getId();
+        this.itemDescription = entity.getItemDescription();
     }
 }

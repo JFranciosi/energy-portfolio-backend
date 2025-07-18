@@ -4,7 +4,7 @@ package miesgroup.mies.webdev.Repository;
 import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
 import jakarta.enterprise.context.ApplicationScoped;
 import miesgroup.mies.webdev.Model.BollettaPod;
-import miesgroup.mies.webdev.Model.Costi;
+import miesgroup.mies.webdev.Model.dettaglioCosto;
 import miesgroup.mies.webdev.Model.Periodo;
 import miesgroup.mies.webdev.Model.Pod;
 
@@ -14,18 +14,18 @@ import java.util.Map;
 @ApplicationScoped
 public class BollettaRepo implements PanacheRepositoryBase<BollettaPod, Integer> {
 
-    private final CostiRepo costiRepo;
+    private final dettaglioCostoRepo costiRepo;
     private final PodRepo podRepo;
 
-    public BollettaRepo(CostiRepo costiRepo, PodRepo podRepo) {
+    public BollettaRepo(dettaglioCostoRepo costiRepo, PodRepo podRepo) {
         this.costiRepo = costiRepo;
         this.podRepo = podRepo;
     }
 
     public Double getCorrispettiviDispacciamentoA2A(int trimestre, String annoRiferimento) {
-        List<Costi> lista = costiRepo.find("unitaMisura = ?1 AND categoria = 'dispacciamento' AND (trimestre = ?2 OR anno IS NOT NULL) AND annoRiferimento = ?3", "€/KWh", trimestre, annoRiferimento).list();
+        List<dettaglioCosto> lista = costiRepo.find("unitaMisura = ?1 AND categoria = 'dispacciamento' AND (trimestre = ?2 OR anno IS NOT NULL) AND annoRiferimento = ?3", "€/KWh", trimestre, annoRiferimento).list();
         double somma = 0;
-        for (Costi c : lista) {
+        for (dettaglioCosto c : lista) {
             somma += c.getCosto();
         }
         return somma;
@@ -62,14 +62,14 @@ public class BollettaRepo implements PanacheRepositoryBase<BollettaPod, Integer>
     }
 
     public Double getCostiOneri(int trimestre, String intervalloPotenza, String unitaMisura, String classeAgevolazione, String annoRiferimento) {
-        List<Costi> lista = costiRepo.find("categoria = 'oneri' AND unitaMisura = ?1 AND intervalloPotenza = ?2 AND (trimestre = ?3 OR anno IS NOT NULL) AND classeAgevolazione = ?4 AND annoRiferimento = ?5",
+        List<dettaglioCosto> lista = costiRepo.find("categoria = 'oneri' AND unitaMisura = ?1 AND intervalloPotenza = ?2 AND (trimestre = ?3 OR anno IS NOT NULL) AND classeAgevolazione = ?4 AND annoRiferimento = ?5",
                 unitaMisura, intervalloPotenza, trimestre, classeAgevolazione, annoRiferimento).list();
         if (lista.isEmpty()) {
             return 0.0;
         }
 
         Double somma = 0.0;
-        for (Costi c : lista) {
+        for (dettaglioCosto c : lista) {
             somma += c.getCosto();
         }
         return somma;
@@ -80,13 +80,23 @@ public class BollettaRepo implements PanacheRepositoryBase<BollettaPod, Integer>
     }
 
 
-    public void updatePenali33(double penali33, String nomeBolletta, String mese) {
-        update("SET penali33 = ?1 WHERE nomeBolletta = ?2 AND mese = ?3", penali33, nomeBolletta, mese);
+    public void updateF1Penale33(double F1Penale33, String nomeBolletta, String mese) {
+        update("SET F1Penale33 = ?1 WHERE nomeBolletta = ?2 AND mese = ?3", F1Penale33, nomeBolletta, mese);
     }
 
 
-    public void updatePenali75(double penali75, String nomeBolletta, String mese) {
-        update("SET penali75 = ?1 WHERE nomeBolletta = ?2 AND mese = ?3", penali75, nomeBolletta, mese);
+    public void updateF1Penale75(double F1Penale75, String nomeBolletta, String mese) {
+        update("SET F1Penale75 = ?1 WHERE nomeBolletta = ?2 AND mese = ?3", F1Penale75, nomeBolletta, mese);
+    }
+
+
+    public void updateF2Penale33(double F2Penale33, String nomeBolletta, String mese) {
+        update("SET F2Penale33 = ?1 WHERE nomeBolletta = ?2 AND mese = ?3", F2Penale33, nomeBolletta, mese);
+    }
+
+
+    public void updateF2Penale75(double F2Penale75, String nomeBolletta, String mese) {
+        update("SET F2Penale75 = ?1 WHERE nomeBolletta = ?2 AND mese = ?3", F2Penale75, nomeBolletta, mese);
     }
 
 
@@ -105,15 +115,28 @@ public class BollettaRepo implements PanacheRepositoryBase<BollettaPod, Integer>
         return count("nomeBolletta = ?1 AND idPod = ?2", nomeBolletta, idPod) > 0;
     }
 
-    public Double getF1(String nomeBolletta, String mese) {
+    public Double getF1A(String nomeBolletta, String mese) {
 
         BollettaPod b = find("nomeBolletta = ?1 AND mese = ?2", nomeBolletta, mese).firstResult();
 
+        Double f1 = b.getF1A();
+        return f1;
+    }
+
+    public Double getF2A(String nomeBolletta, String mese) {
+        BollettaPod b = find("nomeBolletta = ?1 AND mese = ?2", nomeBolletta, mese).firstResult();
+        Double f2 = b.getF2A();
+        return f2;
+
+    }
+
+    public Double getF1P(String nomeBolletta, String mese) {
+        BollettaPod b = find("nomeBolletta = ?1 AND mese = ?2", nomeBolletta, mese).firstResult();
         Double f1 = b.getF1P();
         return f1;
     }
 
-    public Double getF2(String nomeBolletta, String mese) {
+    public Double getF2P(String nomeBolletta, String mese) {
         BollettaPod b = find("nomeBolletta = ?1 AND mese = ?2", nomeBolletta, mese).firstResult();
         Double f2 = b.getF2P();
         return f2;
@@ -121,18 +144,18 @@ public class BollettaRepo implements PanacheRepositoryBase<BollettaPod, Integer>
     }
 
     public Double getPenaliSotto75(String annoRiferimento) {
-        List<Costi> costi = costiRepo.find("categoria = 'penali' AND descrizione = '>33%&75%<' AND annoRiferimento = ?1", annoRiferimento).list();
+        List<dettaglioCosto> costi = costiRepo.find("categoria = 'penali' AND descrizione = '>33%&75%<' AND annoRiferimento = ?1", annoRiferimento).list();
         Double somma = 0.0;
-        for (Costi c : costi) {
+        for (dettaglioCosto c : costi) {
             somma += c.getCosto();
         }
         return somma;
     }
 
     public Double getPenaliSopra75(String annoRiferiemnto) {
-        List<Costi> c = costiRepo.find("categoria = 'penali' AND descrizione = '>75%' AND annoRiferimento = ?1", annoRiferiemnto).list();
+        List<dettaglioCosto> c = costiRepo.find("categoria = 'penali' AND descrizione = '>75%' AND annoRiferimento = ?1", annoRiferiemnto).list();
         Double somma = 0.0;
-        for (Costi costi : c) {
+        for (dettaglioCosto costi : c) {
             somma += costi.getCosto();
         }
         return somma;
@@ -166,7 +189,7 @@ public class BollettaRepo implements PanacheRepositoryBase<BollettaPod, Integer>
     }
 
     public Double getCostoFuoriPicco(int trimestre, String annoBolletta, String intervalloPotenza) {
-        List<Costi> furoiPicco = costiRepo.find("categoria = 'fuori picco' AND ( trimestre = ?1 OR anno IS NOT NULL ) AND annoRiferimento = ?2 AND intervalloPotenza = ?3",
+        List<dettaglioCosto> furoiPicco = costiRepo.find("categoria = 'fuori picco' AND ( trimestre = ?1 OR anno IS NOT NULL ) AND annoRiferimento = ?2 AND intervalloPotenza = ?3",
                 trimestre, annoBolletta, intervalloPotenza).list();
 
         if (furoiPicco.isEmpty()) {
@@ -174,14 +197,14 @@ public class BollettaRepo implements PanacheRepositoryBase<BollettaPod, Integer>
         }
 
         double somma = 0;
-        for (Costi c : furoiPicco) {
+        for (dettaglioCosto c : furoiPicco) {
             somma += c.getCosto();
         }
         return somma;
     }
 
     public Double getCostoPicco(int trimestre, String anno, String rangePotenza) {
-        List<Costi> picco = costiRepo.find("categoria = 'picco' AND ( trimestre = ?1 OR anno IS NOT NULL ) AND annoRiferimento = ?2 AND intervalloPotenza = ?3",
+        List<dettaglioCosto> picco = costiRepo.find("categoria = 'picco' AND ( trimestre = ?1 OR anno IS NOT NULL ) AND annoRiferimento = ?2 AND intervalloPotenza = ?3",
                 trimestre, anno, rangePotenza).list();
 
         if (picco.isEmpty()) {
@@ -189,7 +212,7 @@ public class BollettaRepo implements PanacheRepositoryBase<BollettaPod, Integer>
         }
 
         double somma = 0;
-        for (Costi c : picco) {
+        for (dettaglioCosto c : picco) {
             somma += c.getCosto();
         }
         return somma;
@@ -263,8 +286,8 @@ public class BollettaRepo implements PanacheRepositoryBase<BollettaPod, Integer>
             bolletta.setTotAttivaPerdite(ricalcoli.get("totAttivaPerdite") != null ? ricalcoli.get("totAttivaPerdite") : 0.0);
             bolletta.setGeneration(ricalcoli.get("generation") != null ? ricalcoli.get("generation") : 0.0);
             bolletta.setVerificaDispacciamento(ricalcoli.get("dispacciamento") != null ? ricalcoli.get("dispacciamento") : 0.0);
-            bolletta.setPenali33(ricalcoli.get("penali33") != null ? ricalcoli.get("penali33") : 0.0);
-            bolletta.setPenali75(ricalcoli.get("penali75") != null ? ricalcoli.get("penali75") : 0.0);
+            bolletta.setF1Penale33(ricalcoli.get("penali33") != null ? ricalcoli.get("penali33") : 0.0);
+            bolletta.setF2Penale33(ricalcoli.get("penali75") != null ? ricalcoli.get("penali75") : 0.0);
             bolletta.setQuotaVariabileTrasporti(ricalcoli.get("quotaVariabileTrasporti") != null ? ricalcoli.get("quotaVariabileTrasporti") : 0.0);
             bolletta.setQuotaFissaTrasporti(ricalcoli.get("quotaFissaTrasporti") != null ? ricalcoli.get("quotaFissaTrasporti") : 0.0);
             bolletta.setQuotaPotenzaTrasporti(ricalcoli.get("quotaPotenzaTrasporti") != null ? ricalcoli.get("quotaPotenzaTrasporti") : 0.0);

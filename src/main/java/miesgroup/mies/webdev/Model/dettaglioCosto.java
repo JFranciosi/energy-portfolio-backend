@@ -1,53 +1,49 @@
 package miesgroup.mies.webdev.Model;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 
-import java.sql.Date;
-
 @Entity
-@Table(name = "dettaglio_costo") // Nome corretto della tabella
-public class Costi extends PanacheEntityBase {
+@Table(name = "dettaglioCosto") // Nome corretto della tabella
+public class dettaglioCosto extends PanacheEntityBase {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY) // Auto-increment su MySQL
-    @Column(name = "Id_Costo") // Nome corretto della colonna ID
+    @Column(name = "Id") // Nome corretto della colonna ID
     private Integer id;
 
-    @Column(name = "Descrizione", nullable = false)
-    private String descrizione;
+    @Column(name = "item", nullable = false)
+    private String item;
 
-    @Column(name = "Unità_Misura", nullable = false)
+    @Column(name = "unitaMisura", nullable = false)
     private String unitaMisura;
 
-    @Column(name = "Trimestrale")
-    private Integer trimestre;
+    @Column(name = "modality")
+    private Integer modality;
 
-    @Column(name = "Annuale")
-    private String anno;
+    @Column(name = "checkModality")
+    private Integer checkModality;
 
-    @Column(name = "Costo")
+    @Column(name = "costo")
     private Double costo;
 
-    @Column(name = "Categoria")
+    @Column(name = "categoria")
     private String categoria;
 
-    @Column(name = "Intervallo_Potenza")
+    @Column(name = "intervalloPotenza")
     private String intervalloPotenza;
 
-    @Column(name = "Classe_Agevolazione")
+    @Column(name = "classeAgevolazione")
     private String classeAgevolazione;
 
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
-    @Column(name = "Data_Inserimento", columnDefinition = "DATE DEFAULT CURRENT_DATE")
-    private Date dataInserimento;
-
-    @Column(name = "anno_riferimento")
+    @Column(name = "annoRiferimento")
     private String annoRiferimento;
 
+    @Column(name = "itemDescription")
+    private String itemDescription;
+
     // Costruttore di default
-    public Costi() {
+    public dettaglioCosto() {
     }
 
     // GETTER e SETTER
@@ -59,12 +55,12 @@ public class Costi extends PanacheEntityBase {
         this.id = id;
     }
 
-    public String getDescrizione() {
-        return descrizione;
+    public String getItemDescription() {
+        return itemDescription;
     }
 
-    public void setDescrizione(String descrizione) {
-        this.descrizione = descrizione;
+    public void setItemDescription(String itemDescription) {
+        this.itemDescription = itemDescription;
     }
 
     public String getUnitaMisura() {
@@ -75,20 +71,20 @@ public class Costi extends PanacheEntityBase {
         this.unitaMisura = unitaMisura;
     }
 
-    public Integer getTrimestre() {
-        return trimestre;
+    public Integer getModality() {
+        return modality;
     }
 
-    public void setTrimestre(Integer trimestre) {
-        this.trimestre = trimestre;
+    public void setModality(Integer modality) {
+        this.modality = modality;
     }
 
-    public String getAnno() {
-        return anno;
+    public Integer getCheckModality() {
+        return checkModality;
     }
 
-    public void setAnno(String anno) {
-        this.anno = anno;
+    public void setCheckModality(Integer checkModality) {
+        this.checkModality = checkModality;
     }
 
     public Double getCosto() {
@@ -123,19 +119,18 @@ public class Costi extends PanacheEntityBase {
         this.classeAgevolazione = classeAgevolazione;
     }
 
-    public Date getDataInserimento() {
-        return dataInserimento;
-    }
-
-    public void setDataInserimento(Date dataInserimento) {
-        this.dataInserimento = dataInserimento;
-    }
-
     public String getAnnoRiferimento() {
         return annoRiferimento;
     }
 
     public void setAnnoRiferimento(String annoRiferimento) {
         this.annoRiferimento = annoRiferimento;
+    }
+
+    public String getItem() {
+        return item;
+    }
+    public void setItem(String item) {
+        this.item = item;
     }
 }

@@ -5,28 +5,25 @@ import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import miesgroup.mies.webdev.Model.Cliente;
-import miesgroup.mies.webdev.Model.Costi;
-import miesgroup.mies.webdev.Rest.Model.CostiDTO;
+import miesgroup.mies.webdev.Model.dettaglioCosto;
+import miesgroup.mies.webdev.Rest.Model.dettaglioCostoDTO;
 import miesgroup.mies.webdev.Rest.Model.FormData;
-import miesgroup.mies.webdev.Service.CostiService;
+import miesgroup.mies.webdev.Service.dettaglioCostoService;
 import miesgroup.mies.webdev.Service.SessionService;
 import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.sql.SQLException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @Path("/costi")
-public class CostiResource {
-    private final CostiService costiService;
+public class dettaglioCostoResource {
+    private final dettaglioCostoService dettaglioCostoService;
     private final SessionService sessionService;
 
-    public CostiResource(CostiService costiService, SessionService sessionService) {
-        this.costiService = costiService;
+    public dettaglioCostoResource(dettaglioCostoService costiService, SessionService sessionService) {
+        this.dettaglioCostoService = costiService;
         this.sessionService = sessionService;
     }
 
@@ -47,8 +44,8 @@ public class CostiResource {
         int offset = page * size;
 
         // Query con paginazione
-        PanacheQuery<Costi> query = costiService.getQueryAllCosti(idSessione);
-        List<Costi> paginatedList = query
+        PanacheQuery<dettaglioCosto> query = dettaglioCostoService.getQueryAllCosti(idSessione);
+        List<dettaglioCosto> paginatedList = query
                 .range(offset, offset + size - 1)
                 .list();
 
@@ -70,8 +67,19 @@ public class CostiResource {
     @Path("/aggiungi")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public Response createCosto(Costi costo) throws SQLException {
-        boolean verifica = costiService.createCosto(costo.getDescrizione(), costo.getCategoria(), costo.getUnitaMisura(), costo.getTrimestre(), costo.getAnno(), costo.getCosto(), costo.getIntervalloPotenza(), costo.getClasseAgevolazione());
+    public Response createCosto(dettaglioCosto dettaglioCosto) throws SQLException {
+        boolean verifica = dettaglioCostoService.createDettaglioCosto(
+                dettaglioCosto.getItem(),                 // item
+                dettaglioCosto.getUnitaMisura(),          // unitaMisura
+                dettaglioCosto.getModality(),             // modality
+                dettaglioCosto.getCheckModality(),        // checkModality
+                dettaglioCosto.getCosto(),                // costo
+                dettaglioCosto.getCategoria(),            // categoria
+                dettaglioCosto.getIntervalloPotenza(),    // intervalloPotenza
+                dettaglioCosto.getClasseAgevolazione(),   // classeAgevolazione
+                dettaglioCosto.getAnnoRiferimento(),      // annoRiferimento
+                dettaglioCosto.getItemDescription()       // itemDescription
+        );
         if (!verifica) {
             return Response.status(Response.Status.BAD_REQUEST).build();
         }
@@ -82,8 +90,8 @@ public class CostiResource {
     @Path("/{IntervalloPotenza}")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public Costi getSum(@PathParam("IntervalloPotenza") String intervalloPotenza) throws SQLException {
-        return costiService.getSum(intervalloPotenza);
+    public dettaglioCosto getSum(@PathParam("IntervalloPotenza") String intervalloPotenza) throws SQLException {
+        return dettaglioCostoService.getSum(intervalloPotenza);
     }
 
     @Path("/delete/{id}")
@@ -93,7 +101,7 @@ public class CostiResource {
     public Response deleteCosto(@CookieParam("SESSION_COOKIE") int idSessione, @PathParam("id") int id) throws SQLException {
         Cliente c = sessionService.trovaUtenteCategoryBySessione(idSessione);
         if (c.getTipologia().equals("Admin")) {
-            costiService.deleteCosto(id);
+            dettaglioCostoService.deleteCosto(id);
         } else {
             return Response.status(Response.Status.FORBIDDEN).build();
         }
@@ -107,7 +115,7 @@ public class CostiResource {
     public Response uploadExcelFile(@MultipartForm FormData formData) {
         try {
             InputStream excelInputStream = formData.getFile();
-            costiService.processExcelFile(excelInputStream);
+            dettaglioCostoService.processExcelFile(excelInputStream);
             return Response.ok("File elaborato con successo").build();
         } catch (Exception e) {
             return Response.serverError().entity("Errore: " + e.getMessage()).build();
@@ -119,8 +127,20 @@ public class CostiResource {
     @PUT
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public Response uploadCosto(Costi costo) {
-        boolean verifica = costiService.updateCosto(costo.getId(), costo.getDescrizione(), costo.getCategoria(), costo.getUnitaMisura(), costo.getTrimestre(), costo.getAnno(), costo.getCosto(), costo.getIntervalloPotenza(), costo.getClasseAgevolazione());
+    public Response uploadCosto(dettaglioCosto dettaglioCosto) {
+        boolean verifica = dettaglioCostoService.updateDettaglioCosto(
+                dettaglioCosto.getItem(),
+                dettaglioCosto.getUnitaMisura(),
+                dettaglioCosto.getModality(),
+                dettaglioCosto.getCheckModality(),
+                dettaglioCosto.getCosto(),
+                dettaglioCosto.getCategoria(),
+                dettaglioCosto.getIntervalloPotenza(),
+                dettaglioCosto.getClasseAgevolazione(),
+                dettaglioCosto.getAnnoRiferimento(),
+                dettaglioCosto.getItemDescription()
+        );
+
         if (!verifica) {
             return Response.status(Response.Status.BAD_REQUEST).build();
         }
@@ -133,7 +153,7 @@ public class CostiResource {
     @Produces("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     public Response downloadExcel() {
         try {
-            ByteArrayOutputStream out = costiService.generateExcelFile();
+            ByteArrayOutputStream out = dettaglioCostoService.generateExcelFile();
             byte[] excelData = out.toByteArray(); // Salva i dati prima di chiudere il flusso
             return Response.ok(excelData)
                     .header("Content-Disposition", "attachment; filename=costi.xlsx")
@@ -160,7 +180,7 @@ public class CostiResource {
             return Response.status(Response.Status.UNAUTHORIZED).build();
         }
 
-        long deletedCount = costiService.deleteIds(ids);
+        long deletedCount = dettaglioCostoService.deleteIds(ids);
         return Response.ok(Map.of("deleted", deletedCount)).build();
     }
 
@@ -178,10 +198,10 @@ public class CostiResource {
             @QueryParam("size") @DefaultValue("50") int size
     ) {
         // Recupera la lista dei costi filtrati con paginazione
-        List<CostiDTO> dtoList = costiService.getCostiFiltrati(categoria, anno, annoRif, intervalloPotenza, id, page, size);
+        List<dettaglioCostoDTO> dtoList = dettaglioCostoService.getCostiFiltrati(categoria, anno, annoRif, intervalloPotenza, id, page, size);
 
         // Recupera il totale degli elementi filtrati
-        long total = costiService.countCostiFiltrati(categoria, anno, annoRif, intervalloPotenza);
+        long total = dettaglioCostoService.countCostiFiltrati(categoria, anno, annoRif, intervalloPotenza);
         int totalPages = (int) Math.ceil((double) total / size);
 
         Map<String, Object> response = new HashMap<>();
@@ -194,4 +214,87 @@ public class CostiResource {
         return Response.ok(response).build();
     }
 
+    @GET
+    @Path("/anniRiferimento")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getAnniRiferimento() {
+        try {
+            List<String> anni = dettaglioCostoService.getAnniRiferimento();
+            return Response.ok(anni).build();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Response.serverError().entity("Errore nel recupero degli anni di riferimento: " + e.getMessage()).build();
+        }
+    }
+
+    @GET
+    @Path("/intervalliPotenza")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getIntervalliPotenza() {
+        try {
+            List<String> intervalli = dettaglioCostoService.getIntervalliPotenza();
+            return Response.ok(intervalli).build();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Response.serverError().entity("Errore nel recupero degli intervalli di potenzad: " + e.getMessage()).build();
+        }
+    }
+
+    @GET
+    @Path("/categorie")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getCategorie() {
+        try {
+            List<String> categorie = dettaglioCostoService.getCategorie();
+            return Response.ok(categorie).build();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Response.serverError().entity("Errore nel recupero delle categorie: " + e.getMessage()).build();
+        }
+    }
+
+    @GET
+    @Path("/classeAgevolazione")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getClasseAgevolazione() {
+        try {
+            List<String> categorie = dettaglioCostoService.getClasseAgevolazione();
+            return Response.ok(categorie).build();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Response.serverError().entity("Errore nel recupero delle classe di agevolazione: " + e.getMessage()).build();
+        }
+    }
+
+    @GET
+    @Path("/unitaMisure")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getUnitaMisure() {
+        try {
+            List<String> categorie = dettaglioCostoService.getUnitaMisure();
+            return Response.ok(categorie).build();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Response.serverError().entity("Errore nel recupero delle unità di misura: " + e.getMessage()).build();
+        }
+    }
+
+    @GET
+    @Path("/item")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getItem() {
+        try {
+            List<String> categorie = dettaglioCostoService.getItem();
+            return Response.ok(categorie).build();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Response.serverError().entity("Errore nel recupero degli item: " + e.getMessage()).build();
+        }
+    }
 }

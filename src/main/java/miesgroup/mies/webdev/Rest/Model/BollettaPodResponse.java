@@ -78,8 +78,8 @@ public class BollettaPodResponse {
         this.generation = b.getGeneration();
         this.dispacciamento = b.getDispacciamento();
         this.verificaDispacciamento = b.getVerificaDispacciamento();
-        this.penali33 = b.getPenali33();
-        this.penali75 = b.getPenali75();
+        this.penali33 = b.getF1Penale33();
+        this.penali75 = b.getF2Penale33();
         this.altro = b.getAltro();
         this.periodoInizio = b.getPeriodoInizio();
         this.periodoFine = b.getPeriodoFine();

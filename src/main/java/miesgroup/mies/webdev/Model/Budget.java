@@ -13,8 +13,8 @@ public class Budget implements Serializable {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "id_pod", nullable = false, length = 255)
-    private String podId;
+    @Column(name = "id_pod", nullable = false, length = 14)
+    private String idPod;
 
     @Column(nullable = false)
     private Integer anno;
@@ -44,13 +44,11 @@ public class Budget implements Serializable {
     @JoinColumn(name = "Id_Utente", referencedColumnName = "Id_Utente")
     private Cliente cliente;
 
-    // --- getters & setters ---
-
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
-    public String getPodId() { return podId; }
-    public void setPodId(String podId) { this.podId = podId; }
+    public String getPodId() { return idPod; }
+    public void setPodId(String podId) { this.idPod = podId; }
 
     public Integer getAnno() { return anno; }
     public void setAnno(Integer anno) { this.anno = anno; }
@@ -81,9 +79,9 @@ public class Budget implements Serializable {
 
     /** Restituisce il podId (metodo legacy). */
     public Object getIdPod() {
-        return podId;
+        return idPod;
     }
     public void setPod(String podId) {
-        this.podId = podId;
+        this.idPod = podId;
     }
 }

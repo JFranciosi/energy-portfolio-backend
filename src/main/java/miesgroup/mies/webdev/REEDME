@@ -9,4 +9,241 @@ TODO: creare tabella di inserimento per il budget (front-end) e tabella di salva
 
 TODO: Altro/ verifica altro per fare questo bisogna aspettare che quelli di A2A ci dicano come calcolano il costo
 
-TODO: Rimuovere Data Inserimento per i costi in quanto inutile e trasformare la voce annuale/anno in un boolean
+TODO: Rimuovere Data Inserimento per i costi in quanto inutile e trasformare la voce annuale/checkModality in un boolean
+
+TODO: Non salvare nel db file che non sono stati analizzati e che hanno dato errori
+
+TODO: Risolvere download bollette
+
+TODO: ✅ Come si calcola la penale per supero potenza?
+      Secondo ARERA (Delibera 568/2019 e TIS):
+      1️⃣ Supero < 15%
+      Se il supero è inferiore al 15% della potenza impegnata:
+      Si paga la quota potenza anche sul supero.
+      2️⃣ Supero ≥ 15%
+      Se il supero è ≥ 15%:
+      Si paga una penale specifica più elevata.
+
+TODO: AGGIUNTA DB:Penale_Reattiva_Capacitiva DOUBLE,
+                  Kvarh_Reattiva_Capacitiva_F3 DOUBLE,
+                  Penale_Reattiva_Assorbita DOUBLE,
+                  Cosphi_F1 DOUBLE,
+                  Cosphi_F2 DOUBLE,
+                  Penale_Supero_Potenza DOUBLE,
+                  Potenza_Impegnata DOUBLE,
+                  Potenza_Massima_Rilevata_F1 DOUBLE,
+                  Potenza_Massima_Rilevata_F2 DOUBLE,
+                  Potenza_Massima_Rilevata_F3 DOUBLE,
+
+TODO: Penale33 e 75 dividere in due per f1 e f2 se no calcolo esce sbagliato, aggiungere altri campi nel db
+
+TODO: Usa il cosφ come:indicatore stato salute impianto,trigger di alert per il cliente.
+
+
+
+TODO: Penale energia reattiva capacitiva immessa  Penale = kVArhReattivaCapacitivaImmessaInF3 × TariffaPenale (€/𝑘𝑉𝐴𝑟ℎ)
+TODO: Tutte le penali sono decise da ARERA
+
+TODO: Implementare possibilità di mettere più bollette alla volta e mettere una barra che scorre ogni bolletta analizzata (es. 12 bollette, 0 di 12 ... 1 di 12 ecc..)
+
+TODO: implementare controllo per verificare prima che la bolletta non sia un ricalcolo
+
+TODO: Trimestrale (modality) diventa un campo dove può andarci anche l'checkModality,
+      annaule (checkModality) diventa un campo a tre vie 0=""  1="annuale" 2="trimestrale".
+      Controllo sempre prima il campo "annuale", aggiunta campo Descrizione per controlli interni (es. questo articolo rimane invariato dal 2018)
+
+Indirizzo completo: VIA FABIO FILZI 2 - 22076 MOZZATE CO
+📌 Sede: VIA FABIO FILZI 2
+📌 CAP: 22076
+📌 Città: MOZZATE CO
+Extracting value from line: 31.12.2023 31.01.2024 Fascia oraria F1 324.074 kWh Effettivo
+Mese: gennaio
+Extracting value from line: 31.12.2023 31.01.2024 Fascia oraria F2 146.852 kWh Effettivo
+Mese: gennaio
+Extracting value from line: 31.12.2023 31.01.2024 Fascia oraria F3 220.646 kWh Effettivo
+Mese: gennaio
+Extracting value from line: 31.12.2023 31.01.2024 Fascia oraria F1 86.996 kvarh Effettivo
+Mese: gennaio
+Extracting value from line: 31.12.2023 31.01.2024 Fascia oraria F2 37.390 kvarh Effettivo
+Mese: gennaio
+Extracting value from line: 31.12.2023 31.01.2024 Fascia oraria F3 55.033 kvarh Effettivo
+Mese: gennaio
+Extracting value from line: 31.12.2023 31.01.2024 Fascia oraria F1 1.886,400 kW Effettivo
+Mese: gennaio
+Extracting value from line: 31.12.2023 31.01.2024 Fascia oraria F2 1.824,000 kW Effettivo
+Mese: gennaio
+Extracting value from line: 31.12.2023 31.01.2024 Fascia oraria F3 1.809,600 kW Effettivo
+Mese: gennaio
+Extracting value from line: 31.12.2023 31.01.2024 Fascia oraria F1 955 kvarh Effettivo
+Mese: gennaio
+Extracting value from line: 31.12.2023 31.01.2024 Fascia oraria F2 1.757 kvarh Effettivo
+Mese: gennaio
+Extracting value from line: 31.12.2023 31.01.2024 Fascia oraria F3 5.415 kvarh Effettivo
+Mese: gennaio
+Extracting value from line: 31.12.2023 31.01.2024 Fascia oraria F1 0 kvarh Effettivo
+Mese: gennaio
+Extracting value from line: 31.12.2023 31.01.2024 Fascia oraria F2 0 kvarh Effettivo
+Mese: gennaio
+Extracting value from line: 31.12.2023 31.01.2024 Fascia oraria F3 0 kvarh Effettivo
+Mese: gennaio
+🧐 Tentativo di estrarre valore monetario da: dal 01.01.2024 al 31.01.2024 €/kWh 0,1091779800 276.630 kWh € 30.201,90
+✅ Valore estratto: 30201.90
+🧐 Tentativo di estrarre valore monetario da: dal 01.01.2024 al 31.01.2024 €/kWh 0,2277000000 194.444 kWh € 44.274,90
+✅ Valore estratto: 44274.90
+🧐 Tentativo di estrarre valore monetario da: dal 01.01.2024 al 31.01.2024 €/kWh 0,2277000000 7.388,87 kWh € 1.682,45
+✅ Valore estratto: 1682.45
+🧐 Tentativo di estrarre valore monetario da: dal 01.01.2024 al 31.01.2024 €/kWh 0,2038000000 88.111 kWh € 17.957,02
+✅ Valore estratto: 17957.02
+🧐 Tentativo di estrarre valore monetario da: dal 01.01.2024 al 31.01.2024 €/kWh 0,2038000000 3.348,21 kWh € 682,37
+✅ Valore estratto: 682.37
+🧐 Tentativo di estrarre valore monetario da: dal 01.01.2024 al 31.01.2024 €/kWh 0,1657000000 132.387 kWh € 21.936,53
+✅ Valore estratto: 21936.53
+🧐 Tentativo di estrarre valore monetario da: dal 01.01.2024 al 31.01.2024 €/kWh 0,1657000000 5.030,70 kWh € 833,59
+✅ Valore estratto: 833.59
+🧐 Tentativo di estrarre valore monetario da: dal 01.01.2024 al 31.01.2024 €/kWh 0,0075000000 717.851,74 kWh € 5.383,89
+✅ Valore estratto: 5383.89
+🧐 Tentativo di estrarre valore monetario da: dal 01.01.2024 al 31.01.2024 €/kWh 0,0449000000 142.254,79 kWh € 6.387,24
+✅ Valore estratto: 6387.24
+🧐 Tentativo di estrarre valore monetario da: dal 01.01.2024 al 31.01.2024 €/kWh 0,0016390000 575.597,99 kWh € 943,41
+✅ Valore estratto: 943.41
+🧐 Tentativo di estrarre valore monetario da: dal 01.01.2024 al 31.01.2024 €/cliente/giorno 2,0757248634 31 giorni € 64,35
+✅ Valore estratto: 64.35
+🧐 Tentativo di estrarre valore monetario da: dal 01.01.2024 al 31.01.2024 €/kW/giorno 0,0743204918 31 giorni x 1886,400 kW € 4.346,14
+✅ Valore estratto: 4346.14
+🧐 Tentativo di estrarre valore monetario da: dal 01.01.2024 al 31.01.2024 1° scaglione €/kWh 0,0110000000 691.572 kWh € 7.607,29
+✅ Valore estratto: 7607.29
+🧐 Tentativo di estrarre valore monetario da: dal 01.01.2024 al 31.01.2024 €/kVARh 0,0040800000 5.415,58 kVARh € 22,10
+✅ Valore estratto: 22.10
+🧐 Tentativo di estrarre valore monetario da: dal 01.01.2024 al 31.01.2024 €/cliente/giorno 0,8205311475 31 giorni € 25,44
+✅ Valore estratto: 25.44
+🧐 Tentativo di estrarre valore monetario da: dal 01.01.2024 al 31.01.2024 €/cliente/giorno 0,7710688525 31 giorni € 23,90
+✅ Valore estratto: 23.90
+🧐 Tentativo di estrarre valore monetario da: dal 01.01.2024 al 31.01.2024 €/kW/giorno 0,0293770492 31 giorni x 1886,400 kW € 1.717,92
+✅ Valore estratto: 1717.92
+🧐 Tentativo di estrarre valore monetario da: dal 01.01.2024 al 31.01.2024 €/kW/giorno 0,0276098361 31 giorni x 1886,400 kW € 1.614,58
+✅ Valore estratto: 1614.58
+🧐 Tentativo di estrarre valore monetario da: dal 01.01.2024 al 31.01.2024 1° scaglione €/kWh 0,0353420000 691.572 kWh € 24.441,54
+✅ Valore estratto: 24441.54
+🧐 Tentativo di estrarre valore monetario da: dal 01.01.2024 al 31.01.2024 1° scaglione €/kWh 0,0040860000 691.572 kWh € 2.825,76
+✅ Valore estratto: 2825.76
+🧐 Tentativo di estrarre valore monetario da: dal 01.01.2024 al 31.01.2024 €/kWh 0,0125000000 200.000 kWh € 2.500,00
+✅ Valore estratto: 2500.00
+🧐 Tentativo di estrarre valore monetario da: dal 01.01.2024 al 31.01.2024 €/kWh 0,0075000000 491.572 kWh € 3.686,79
+✅ Valore estratto: 3686.79
+Estrazione spese: {gennaio={Altro=[22.1], Trasporto e Gestione Contatore=[64.35, 4346.14, 7607.29], Fuori Picco=[943.41], Totale Imposte=[2500.0, 3686.79], Materia Energia=[30201.9], dispacciamento=[5383.89], Picco=[6387.24], Oneri di Sistema=[25.44, 23.9, 1717.92, 1614.58, 24441.54, 2825.76], Materia energia F1=[44274.9], Materia energia F2=[17957.02], Materia energia F3=[21936.53], Perdite F3=[833.59], Perdite F1=[1682.45], Perdite F2=[682.37]}}
+✅ Valore kWh/kVARh estratto: 276630.0
+✅ Valore kWh/kVARh estratto: 194444.0
+✅ Valore kWh/kVARh estratto: 7388.87
+✅ Valore kWh/kVARh estratto: 88111.0
+✅ Valore kWh/kVARh estratto: 3348.21
+✅ Valore kWh/kVARh estratto: 132387.0
+✅ Valore kWh/kVARh estratto: 5030.7
+✅ Valore kWh/kVARh estratto: 717851.74
+✅ Valore kWh/kVARh estratto: 142254.79
+✅ Valore kWh/kVARh estratto: 575597.99
+Estrazione kWh: {gennaio={Fuori Picco=[575597.99], dispacciamento=[717851.74], Materia energia F0=[276630.0], Materia energia F1=[194444.0], Materia energia F2=[88111.0], Materia energia F3=[132387.0], Perdite F3=[5030.7], Picco=[142254.79], Perdite F1=[7388.87], Perdite F2=[3348.21]}}
+meseAnno: Gen 2024
+Salvataggio bolletta: miesgroup.mies.webdev.Model.BollettaPod@676a04d8
+Costo per f0: 0.0
+Costo per f1: 0.0
+Costo per f2: 0.0
+Costo per f3: 0.0
+Costo per f1_perdite: 0.0
+Costo per f2_perdite: 0.0
+Costo per f3_perdite: 0.0
+
+Extracting value from line: 31.01.2024 29.02.2024 Fascia oraria F1 402.350 kWh Effettivo
+Mese: febbraio
+Extracting value from line: 31.01.2024 29.02.2024 Fascia oraria F2 195.978 kWh Effettivo
+Mese: febbraio
+Extracting value from line: 31.01.2024 29.02.2024 Fascia oraria F3 292.428 kWh Effettivo
+Mese: febbraio
+Extracting value from line: 31.01.2024 29.02.2024 Fascia oraria F1 110.177 kvarh Effettivo
+Mese: febbraio
+Extracting value from line: 31.01.2024 29.02.2024 Fascia oraria F2 51.400 kvarh Effettivo
+Mese: febbraio
+Extracting value from line: 31.01.2024 29.02.2024 Fascia oraria F3 76.870 kvarh Effettivo
+Mese: febbraio
+Extracting value from line: 31.01.2024 29.02.2024 Fascia oraria F1 2.092,800 kW Effettivo
+Mese: febbraio
+Extracting value from line: 31.01.2024 29.02.2024 Fascia oraria F2 1.968,000 kW Effettivo
+Mese: febbraio
+Extracting value from line: 31.01.2024 29.02.2024 Fascia oraria F3 1.944,000 kW Effettivo
+Mese: febbraio
+Extracting value from line: 31.01.2024 29.02.2024 Fascia oraria F1 0 kvarh Effettivo
+Mese: febbraio
+Extracting value from line: 31.01.2024 29.02.2024 Fascia oraria F2 1.162 kvarh Effettivo
+Mese: febbraio
+Extracting value from line: 31.01.2024 29.02.2024 Fascia oraria F3 3.218 kvarh Effettivo
+Mese: febbraio
+Extracting value from line: 31.01.2024 29.02.2024 Fascia oraria F1 0 kvarh Effettivo
+Mese: febbraio
+Extracting value from line: 31.01.2024 29.02.2024 Fascia oraria F2 0 kvarh Effettivo
+Mese: febbraio
+Extracting value from line: 31.01.2024 29.02.2024 Fascia oraria F3 0 kvarh Effettivo
+Mese: febbraio
+🧐 Tentativo di estrarre valore monetario da: dal 01.02.2024 al 29.02.2024 €/kWh 0,0972745100 356.302 kWh € 34.659,10
+✅ Valore estratto: 34659.10
+🧐 Tentativo di estrarre valore monetario da: dal 01.02.2024 al 29.02.2024 €/kWh 0,2277000000 241.410 kWh € 54.969,06
+✅ Valore estratto: 54969.06
+🧐 Tentativo di estrarre valore monetario da: dal 01.02.2024 al 29.02.2024 €/kWh 0,2277000000 9.173,58 kWh € 2.088,82
+✅ Valore estratto: 2088.82
+🧐 Tentativo di estrarre valore monetario da: dal 01.02.2024 al 29.02.2024 €/kWh 0,2038000000 117.587 kWh € 23.964,23
+✅ Valore estratto: 23964.23
+🧐 Tentativo di estrarre valore monetario da: dal 01.02.2024 al 29.02.2024 €/kWh 0,2038000000 4.468,30 kWh € 910,64
+✅ Valore estratto: 910.64
+🧐 Tentativo di estrarre valore monetario da: dal 01.02.2024 al 29.02.2024 €/kWh 0,1657000000 175.457 kWh € 29.073,22
+✅ Valore estratto: 29073.22
+🧐 Tentativo di estrarre valore monetario da: dal 01.02.2024 al 29.02.2024 €/kWh 0,1657000000 6.667,36 kWh € 1.104,78
+✅ Valore estratto: 1104.78
+🧐 Tentativo di estrarre valore monetario da: dal 01.02.2024 al 29.02.2024 €/kWh 0,0075000000 924.604,73 kWh € 6.934,54
+✅ Valore estratto: 6934.54
+🧐 Tentativo di estrarre valore monetario da: dal 01.02.2024 al 29.02.2024 €/kWh 0,0449000000 143.101,79 kWh € 6.425,27
+✅ Valore estratto: 6425.27
+🧐 Tentativo di estrarre valore monetario da: dal 01.02.2024 al 29.02.2024 €/kWh 0,0016390000 781.502,93 kWh € 1.280,88
+✅ Valore estratto: 1280.88
+🧐 Tentativo di estrarre valore monetario da: dal 01.02.2024 al 29.02.2024 €/cliente/giorno 2,0757248634 29 giorni € 60,20
+✅ Valore estratto: 60.20
+🧐 Tentativo di estrarre valore monetario da: dal 01.02.2024 al 29.02.2024 €/kW/giorno 0,0743204918 29 giorni x 2092,800 kW € 4.510,60
+✅ Valore estratto: 4510.60
+🧐 Tentativo di estrarre valore monetario da: dal 01.02.2024 al 29.02.2024 1° scaglione €/kWh 0,0110000000 890.756 kWh € 9.798,32
+✅ Valore estratto: 9798.32
+🧐 Tentativo di estrarre valore monetario da: dal 01.02.2024 al 29.02.2024 €/kVARh 0,0040800000 3.218,38 kVARh € 13,13
+✅ Valore estratto: 13.13
+🧐 Tentativo di estrarre valore monetario da: dal 01.02.2024 al 29.02.2024 €/cliente/giorno 0,8205311475 29 giorni € 23,80
+✅ Valore estratto: 23.80
+🧐 Tentativo di estrarre valore monetario da: dal 01.02.2024 al 29.02.2024 €/cliente/giorno 0,7710688525 29 giorni € 22,36
+✅ Valore estratto: 22.36
+🧐 Tentativo di estrarre valore monetario da: dal 01.02.2024 al 29.02.2024 €/kW/giorno 0,0293770492 29 giorni x 2092,800 kW € 1.782,93
+✅ Valore estratto: 1782.93
+🧐 Tentativo di estrarre valore monetario da: dal 01.02.2024 al 29.02.2024 €/kW/giorno 0,0276098361 29 giorni x 2092,800 kW € 1.675,67
+✅ Valore estratto: 1675.67
+🧐 Tentativo di estrarre valore monetario da: dal 01.02.2024 al 29.02.2024 1° scaglione €/kWh 0,0353420000 890.756 kWh € 31.481,10
+✅ Valore estratto: 31481.10
+🧐 Tentativo di estrarre valore monetario da: dal 01.02.2024 al 29.02.2024 1° scaglione €/kWh 0,0040860000 890.756 kWh € 3.639,63
+✅ Valore estratto: 3639.63
+🧐 Tentativo di estrarre valore monetario da: dal 01.02.2024 al 29.02.2024 €/kWh 0,0125000000 200.000 kWh € 2.500,00
+✅ Valore estratto: 2500.00
+🧐 Tentativo di estrarre valore monetario da: dal 01.02.2024 al 29.02.2024 €/kWh 0,0075000000 690.756 kWh € 5.180,67
+✅ Valore estratto: 5180.67
+Estrazione spese: {febbraio={Altro=[13.13], Trasporto e Gestione Contatore=[60.2, 4510.6, 9798.32], Fuori Picco=[1280.88], Totale Imposte=[2500.0, 5180.67], Materia Energia=[34659.1], dispacciamento=[6934.54], Picco=[6425.27], Oneri di Sistema=[23.8, 22.36, 1782.93, 1675.67, 31481.1, 3639.63], Materia energia F1=[54969.06], Materia energia F2=[23964.23], Materia energia F3=[29073.22], Perdite F3=[1104.78], Perdite F1=[2088.82], Perdite F2=[910.64]}}
+✅ Valore kWh/kVARh estratto: 356302.0
+✅ Valore kWh/kVARh estratto: 241410.0
+✅ Valore kWh/kVARh estratto: 9173.58
+✅ Valore kWh/kVARh estratto: 117587.0
+✅ Valore kWh/kVARh estratto: 4468.3
+✅ Valore kWh/kVARh estratto: 175457.0
+✅ Valore kWh/kVARh estratto: 6667.36
+✅ Valore kWh/kVARh estratto: 924604.73
+✅ Valore kWh/kVARh estratto: 143101.79
+✅ Valore kWh/kVARh estratto: 781502.93
+Estrazione kWh: {febbraio={Fuori Picco=[781502.93], dispacciamento=[924604.73], Materia energia F0=[356302.0], Materia energia F1=[241410.0], Materia energia F2=[117587.0], Materia energia F3=[175457.0], Perdite F3=[6667.36], Picco=[143101.79], Perdite F1=[9173.58], Perdite F2=[4468.3]}}
+meseAnno: Feb 2024
+Salvataggio bolletta: miesgroup.mies.webdev.Model.BollettaPod@224aa12c
+Costo per f0: 0.0
+Costo per f1: 0.0
+Costo per f2: 0.0
+Costo per f3: 0.0
+Costo per f1_perdite: 0.0
+Costo per f2_perdite: 0.0
+Costo per f3_perdite: 0.0

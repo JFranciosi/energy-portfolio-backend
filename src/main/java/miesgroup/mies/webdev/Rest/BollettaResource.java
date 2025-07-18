@@ -45,6 +45,10 @@ public class BollettaResource {
     @Produces(MediaType.TEXT_PLAIN)
     public Response uploadAndProcessFileA2A(@MultipartForm FileUploadForm form, @CookieParam("SESSION_COOKIE") int idSessione) {
         try {
+
+            //NON VA BENE BISOGNA PRIMA CONTROLLARE CHE IL FILE SIA POSSIBILE ANALIZZARLO SOLO DOPO SI FA IL SALVATAGGIO,
+            //SE NO SUCCEDE CHE SE PER ERRORI DI CONNESSIONE IL CLIENTE NON CARICA LA BOLLETTA DOBBIAMO AGIRE NOI PER RIMUOVERLA DAL DB E FARGLIELA RIMETTERE
+
             // 1. Salva il file caricato e ottieni l'ID associato
             int idFile = fileService.saveFile(form.getFileName(), form.getFileData());
 

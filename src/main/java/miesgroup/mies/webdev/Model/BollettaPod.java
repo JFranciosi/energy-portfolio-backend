@@ -150,11 +150,17 @@ public class BollettaPod extends PanacheEntityBase {
     @Column(name = "verifica_dispacciamento")
     private Double verificaDispacciamento;
 
-    @Column(name = "penali33")
-    private Double penali33;
+    @Column(name = "F1Penale33")
+    private Double F1Penale33;
 
-    @Column(name = "penali75")
-    private Double penali75;
+    @Column(name = "F1Penale75")
+    private Double F1Penale75;
+
+    @Column(name = "F2Penale33")
+    private Double F2Penale33;
+
+    @Column(name = "F2Penale75")
+    private Double F2Penale75;
 
     @Column(name = "Altro")
     private Double altro;
@@ -403,20 +409,36 @@ public class BollettaPod extends PanacheEntityBase {
         this.verificaDispacciamento = dispacciamento;
     }
 
-    public Double getPenali33() {
-        return penali33;
+    public Double getF1Penale33() {
+        return F1Penale33;
     }
 
-    public void setPenali33(Double penali33) {
-        this.penali33 = penali33;
+    public void setF1Penale33(Double f1Penale33) {
+        this.F1Penale33 = f1Penale33;
     }
 
-    public Double getPenali75() {
-        return penali75;
+    public Double getF2Penale33() {
+        return F2Penale33;
     }
 
-    public void setPenali75(Double penali75) {
-        this.penali75 = penali75;
+    public void setF2Penale33(Double f2Penale33) {
+        this.F2Penale33 = f2Penale33;
+    }
+
+    public Double getF1Penale75() {
+        return F1Penale75;
+    }
+
+    public void setF1Penale75(Double f1Penale75) {
+        F1Penale75 = f1Penale75;
+    }
+
+    public Double getF2Penale75() {
+        return F2Penale75;
+    }
+
+    public void setF2Penale75(Double f2Penale75) {
+        F2Penale75 = f2Penale75;
     }
 
     public Double getAltro() {

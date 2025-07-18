@@ -14,7 +14,7 @@ public class BudgetAll implements Serializable {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "id_pod", nullable = false, length = 255)
+    @Column(name = "id_pod", nullable = false, length = 14)
     private String idPod;
 
     @Column(nullable = false)

@@ -216,7 +216,6 @@ public class FileService {
         for (BollettaPod bollettaPod : b) {
             bollettaService.A2AVerifica(bollettaPod);
         }
-
     }
 
     private Periodo extractPeriodo(Document document) {
@@ -639,7 +638,6 @@ public class FileService {
             Node lineNode = lineNodes.item(i);
             if (lineNode.getNodeType() == Node.ELEMENT_NODE) {
                 String lineText = lineNode.getTextContent();
-
 
                 // Gestione delle categorie
                 if (lineText.contains("ENERGIA ATTIVA")) {
