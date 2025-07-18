@@ -1,7 +1,5 @@
 package miesgroup.mies.webdev.Rest.Model;
 
-import java.math.BigDecimal;
-
 public class Futures {
     private String year, quarter, month;
     private Double settlementPrice;

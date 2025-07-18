@@ -1,6 +1,6 @@
 package miesgroup.mies.webdev.Rest.Model;
 
-import miesgroup.mies.webdev.Model.dettaglioCosto;
+import miesgroup.mies.webdev.Model.bolletta.dettaglioCosto;
 
 public class dettaglioCostoDTO {
     public Integer id;

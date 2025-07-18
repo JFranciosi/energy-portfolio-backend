@@ -1,6 +1,6 @@
 package miesgroup.mies.webdev.Rest.Model;
 
-import miesgroup.mies.webdev.Model.Pod;
+import miesgroup.mies.webdev.Model.bolletta.Pod;
 
 public class PodResponse {
 

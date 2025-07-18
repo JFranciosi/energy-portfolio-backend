@@ -2,7 +2,7 @@ package miesgroup.mies.webdev.Rest.Model;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import miesgroup.mies.webdev.Model.PDFFile;
+import miesgroup.mies.webdev.Model.file.PDFFile;
 
 import java.io.Serializable;
 

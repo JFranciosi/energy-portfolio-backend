@@ -3,7 +3,7 @@ package miesgroup.mies.webdev.Rest.Exception;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
-import miesgroup.mies.webdev.Service.Exception.WrongUsernameOrPasswordException;
+import miesgroup.mies.webdev.Service.exception.WrongUsernameOrPasswordException;
 
 @Provider
 public class WrongUsernameOrPasswordExceptionMapper implements ExceptionMapper<WrongUsernameOrPasswordException> {

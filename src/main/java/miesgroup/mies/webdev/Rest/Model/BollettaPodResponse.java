@@ -1,6 +1,6 @@
 package miesgroup.mies.webdev.Rest.Model;
 
-import miesgroup.mies.webdev.Model.BollettaPod;
+import miesgroup.mies.webdev.Model.bolletta.BollettaPod;
 
 import java.sql.Date;
 

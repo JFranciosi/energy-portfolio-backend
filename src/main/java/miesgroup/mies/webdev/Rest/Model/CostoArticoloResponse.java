@@ -1,6 +1,6 @@
 package miesgroup.mies.webdev.Rest.Model;
 
-import miesgroup.mies.webdev.Model.CostoArticolo;
+import miesgroup.mies.webdev.Model.bolletta.CostoArticolo;
 
 public class CostoArticoloResponse {
     public String nomeArticolo;
