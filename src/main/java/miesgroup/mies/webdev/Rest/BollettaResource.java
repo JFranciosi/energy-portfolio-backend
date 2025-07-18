@@ -1,24 +1,19 @@
 package miesgroup.mies.webdev.Rest;
 
-import com.microsoft.aad.msal4j.UserIdentifier;
-import io.vertx.mutiny.ext.auth.User;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
-import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import jakarta.ws.rs.core.SecurityContext;
-import miesgroup.mies.webdev.Model.BollettaPod;
 import miesgroup.mies.webdev.Model.Cliente;
 import miesgroup.mies.webdev.Model.PDFFile;
 import miesgroup.mies.webdev.Repository.ClienteRepo;
 import miesgroup.mies.webdev.Repository.SessionRepo;
 import miesgroup.mies.webdev.Rest.Model.FileUploadForm;
-import miesgroup.mies.webdev.Rest.Model.SingleFile;
 import miesgroup.mies.webdev.Service.FileService;
 import miesgroup.mies.webdev.Service.PodService;
 import org.jboss.resteasy.annotations.providers.multipart.MultipartForm;
 
+import java.io.ByteArrayInputStream;
 import java.sql.SQLException;
 import org.w3c.dom.Document;
 import javax.xml.parsers.ParserConfigurationException;
@@ -111,83 +106,6 @@ public class BollettaResource {
         }
     }
 
-
-
-    @Path("/upload-multiplo")
-    @POST
-    @Consumes(MediaType.MULTIPART_FORM_DATA)
-    @Produces(MediaType.APPLICATION_JSON)
-    public Response uploadMultipleFiles(
-            @MultipartForm FileUploadForm form,
-            @CookieParam("SESSION_COOKIE") int idSessione
-    ) {
-        // Ottieni lista di SingleFile dal form
-        List<SingleFile> files = form.getSingleFileList();
-
-        if (files == null || files.isEmpty()) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(Map.of("error", "Nessun file inviato"))
-                    .build();
-        }
-        if (files.size() > 12) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(Map.of("error", "Puoi caricare massimo 12 file alla volta"))
-                    .build();
-        }
-
-        // 1. Recupera idUser dalla sessione PRIMA del ciclo!
-        Integer idUser = sessioneRepo.getUserIdBySessionId(idSessione);
-        if (idUser == null) {
-            return Response.status(Response.Status.UNAUTHORIZED)
-                    .entity(Map.of("error", "Utente non autenticato (sessione non valida)"))
-                    .build();
-        }
-
-        List<Map<String, Object>> results = new ArrayList<>();
-
-        for (SingleFile file : files) {
-            Map<String, Object> result = new HashMap<>();
-            result.put("fileName", file.getFileName());
-            try {
-                int idFile = fileService.saveFile(file.getFileName(), file.getFileData());
-                Document xmlDocument = fileService.convertPdfToXml(file.getFileData());
-                String xmlString = fileService.convertDocumentToString(xmlDocument);
-                byte[] xmlData = xmlString.getBytes();
-                String idPod = podService.extractValuesFromXml(xmlData, idSessione);
-
-                if (idPod == null || idPod.isEmpty()) {
-                    result.put("status", "error");
-                    result.put("message", "Impossibile estrarre l'ID del POD dal documento XML.");
-                    results.add(result);
-                    continue;
-                }
-
-                // --- AGGIUNGI idUser qui ---
-                String nomeB = fileService.extractValuesFromXmlA2A(xmlData, idPod, idUser);
-                if (nomeB == null || nomeB.isEmpty()) {
-                    result.put("status", "error");
-                    result.put("message", "Impossibile estrarre i dati della bolletta dal documento XML.");
-                    results.add(result);
-                    continue;
-                }
-
-                fileService.verificaA2APiuMesi(nomeB);
-                fileService.controlloRicalcoliInBolletta(xmlData, idPod, nomeB, idSessione);
-                fileService.abbinaPod(idFile, idPod);
-
-                result.put("status", "success");
-                result.put("message", "File caricato e processato con successo.");
-            } catch (Exception e) {
-                result.put("status", "error");
-                result.put("message", e.getMessage());
-            }
-            results.add(result);
-        }
-
-        return Response.ok(results).build();
-    }
-
-
     @Path("/xml/{id}")
     @GET
     @Produces(MediaType.APPLICATION_XML)
@@ -231,20 +149,22 @@ public class BollettaResource {
     }
 
     @GET
-    @Path("/{id}/download")
-    @Produces(MediaType.APPLICATION_OCTET_STREAM)
-    public Response downloadFile(@PathParam("id") int id) {
+    @Path("/{id}/download-xlsx")
+    @Produces("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    public Response downloadExcel(@PathParam("id") int id) throws IOException {
         PDFFile pdfFile = fileService.getFile(id);
         if (pdfFile == null) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
-        byte[] fileData = pdfFile.getFileData();
-        String fileName = pdfFile.getFileName();
+        byte[] excelData = fileService.generateExcelFromPdfData(pdfFile.getFileData());
+        String fileName = pdfFile.getFileName().replaceAll("\\.pdf$", ".xlsx");
 
-        return Response.ok(fileData, MediaType.APPLICATION_OCTET_STREAM)
+        return Response.ok(new ByteArrayInputStream(excelData),
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                 .header("Content-Disposition", "attachment; filename=\"" + fileName + "\"")
                 .build();
     }
+
 
     @Path("/env")
     @GET

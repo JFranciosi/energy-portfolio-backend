@@ -1,5 +1,6 @@
 package miesgroup.mies.webdev.Rest;
 
+import io.quarkus.security.User;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -7,6 +8,7 @@ import miesgroup.mies.webdev.Model.Cliente;
 import miesgroup.mies.webdev.Model.CostoEnergia;
 import miesgroup.mies.webdev.Rest.Model.ClienteRequest;
 import miesgroup.mies.webdev.Rest.Model.ClienteResponse;
+import miesgroup.mies.webdev.Rest.Model.KeepLoggedRequest;
 import miesgroup.mies.webdev.Service.ClienteService;
 import miesgroup.mies.webdev.Service.CostoEnergiaService;
 import miesgroup.mies.webdev.Service.SessionService;
@@ -298,4 +300,85 @@ public class ClienteResource {
 
         return Response.ok().build();
     }
+
+    @PUT
+    @Path("/update-password")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response updatePassword(Map<String, String> body, @CookieParam("SESSION_COOKIE") Integer sessionId) {
+        if (sessionId == null) {
+            return Response.status(Response.Status.UNAUTHORIZED).entity("Sessione non valida").build();
+        }
+        int idUtente = sessionService.trovaUtentebBySessione(sessionId);
+        if (idUtente == 0) {
+            return Response.status(Response.Status.UNAUTHORIZED).entity("Sessione non valida").build();
+        }
+
+        String currentPassword = body.get("currentPassword");
+        String newPassword = body.get("newPassword");
+
+        if (currentPassword == null || newPassword == null) {
+            return Response.status(Response.Status.BAD_REQUEST).entity("Dati mancanti per aggiornare la password").build();
+        }
+
+        boolean updated = clienteService.updatePassword(idUtente, currentPassword, newPassword);
+        if (!updated) {
+            return Response.status(Response.Status.BAD_REQUEST).entity("Password attuale errata o utente non trovato").build();
+        }
+
+        return Response.ok("Password aggiornata con successo").build();
+    }
+
+    @POST
+    @Path("/keep-logged")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response setKeepLogged(KeepLoggedRequest request, @CookieParam("SESSION_COOKIE") Integer sessionId) {
+        if (sessionId == null) {
+            return Response.status(Response.Status.UNAUTHORIZED).entity("Sessione non valida").build();
+        }
+
+        int idUtenteSession = sessionService.trovaUtentebBySessione(sessionId);
+        if (idUtenteSession == 0 || idUtenteSession != request.idUtente) {
+            return Response.status(Response.Status.UNAUTHORIZED).entity("Utente non autorizzato").build();
+        }
+
+        Cliente cliente = clienteService.getCliente(request.idUtente);
+        if (cliente == null) {
+            return Response.status(Response.Status.NOT_FOUND).entity("Cliente non trovato").build();
+        }
+
+        boolean updateResult = clienteService.setKeepLogged(request.idUtente, request.keepLogged);
+        if (!updateResult) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity("Errore aggiornamento preferenza").build();
+        }
+
+        return Response.ok(Map.of("keepLogged", request.keepLogged)).build();
+    }
+
+    @GET
+    @Path("/sessione")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getSessionInfo(@CookieParam("SESSION_COOKIE") Integer sessionId) {
+        if (sessionId == null) {
+            return Response.status(Response.Status.UNAUTHORIZED).build();
+        }
+        int idUtente = sessionService.trovaUtentebBySessione(sessionId);
+        if (idUtente == 0) {
+            return Response.status(Response.Status.UNAUTHORIZED).build();
+        }
+
+        Cliente cliente = clienteService.getCliente(idUtente);
+        if (cliente == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+
+        Boolean keepLogged = cliente.getKeepLogged();
+        if (keepLogged == null) {
+            keepLogged = false;
+        }
+
+        return Response.ok(Map.of("keepLogged", keepLogged)).build();
+    }
+
 }

@@ -14,6 +14,7 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -29,6 +30,9 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.StringWriter;
 
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -1023,6 +1027,70 @@ public class FileService {
         return files.stream()
                 .map(FileDto::new)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public byte[] generateExcelFromPdfData(byte[] pdfData) throws IOException {
+        // 1) Estrai testo e genera XML (come fai già)
+        Document xmlDoc;
+        try {
+            xmlDoc = convertPdfToXml(pdfData);
+        } catch (Exception e) {
+            throw new IOException("Errore durante conversione PDF-XML", e);
+        }
+
+        // 2) Estrai i dati significativi
+        Map<String, Map<String, Double>> spesePerMese = extractSpesePerMese(xmlDoc);
+        Map<String, Map<String, Double>> kwhPerMese = extractKwhPerMese(xmlDoc);
+
+        // 3) Crea Excel e popola dati
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("Bolletta");
+
+            // Crea intestazioni
+            Row header = sheet.createRow(0);
+            header.createCell(0).setCellValue("Mese");
+            header.createCell(1).setCellValue("Categoria");
+            header.createCell(2).setCellValue("Spesa (€)");
+            header.createCell(3).setCellValue("Consumo (kWh)");
+
+            int rowNum = 1;
+
+            // Usa tutti i mesi unici da spese e kwh
+            Set<String> mesi = new HashSet<>();
+            mesi.addAll(spesePerMese.keySet());
+            mesi.addAll(kwhPerMese.keySet());
+
+            for (String mese : mesi) {
+                Map<String, Double> speseMap = spesePerMese.getOrDefault(mese, Collections.emptyMap());
+                Map<String, Double> kwhMap = kwhPerMese.getOrDefault(mese, Collections.emptyMap());
+
+                // Ottieni tutte le categorie uniche
+                Set<String> categorie = new HashSet<>();
+                categorie.addAll(speseMap.keySet());
+                categorie.addAll(kwhMap.keySet());
+
+                for (String categoria : categorie) {
+                    Row row = sheet.createRow(rowNum++);
+                    row.createCell(0).setCellValue(mese);
+                    row.createCell(1).setCellValue(categoria);
+                    row.createCell(2).setCellValue(speseMap.getOrDefault(categoria, 0.0));
+                    row.createCell(3).setCellValue(kwhMap.getOrDefault(categoria, 0.0));
+                }
+            }
+
+            // Auto-size colonne per leggibilità
+            for (int i = 0; i <= 3; i++) {
+                sheet.autoSizeColumn(i);
+            }
+
+            // Scrivi workbook in byte[]
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            workbook.write(bos);
+            bos.close();
+
+            return bos.toByteArray();
+        }
     }
 
 }
