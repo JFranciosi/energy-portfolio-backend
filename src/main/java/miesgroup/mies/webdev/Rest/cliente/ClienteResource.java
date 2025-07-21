@@ -134,7 +134,6 @@ public class ClienteResource {
         return Response.ok(clienteService.parseResponse(clienteAggiornato)).build();
     }
 
-    // Aggiorna un cliente specifico (solo admin)
     @PUT
     @Path("/update/{id}")
     @Consumes(MediaType.APPLICATION_JSON)
@@ -142,6 +141,7 @@ public class ClienteResource {
     public Response updateClienteById(@PathParam("id") int idUtente,
                                       Map<String, Object> updateData,
                                       @CookieParam("SESSION_COOKIE") Integer sessionId) {
+        // Controllo sessione valida
         if (sessionId == null) {
             return Response.status(Response.Status.UNAUTHORIZED)
                     .entity("Sessione non valida")
@@ -154,6 +154,7 @@ public class ClienteResource {
                     .build();
         }
 
+        // Verifica permessi admin
         Cliente sessionUser = clienteService.getCliente(idUtenteSession);
         if (sessionUser == null || !"Admin".equalsIgnoreCase(sessionUser.getTipologia())) {
             return Response.status(Response.Status.FORBIDDEN)
@@ -167,6 +168,7 @@ public class ClienteResource {
                     .build();
         }
 
+        // Cliente da aggiornare
         Cliente clienteCorrente = clienteService.getCliente(idUtente);
         if (clienteCorrente == null) {
             return Response.status(Response.Status.NOT_FOUND)
@@ -174,13 +176,12 @@ public class ClienteResource {
                     .build();
         }
 
+        // Ciclo su campi da aggiornare
         for (Map.Entry<String, Object> entry : updateData.entrySet()) {
             String field = entry.getKey();
-            if ("id".equalsIgnoreCase(field)) continue;
+            if ("id".equalsIgnoreCase(field)) continue; // Non modificare ID
 
-            String newValue = entry.getValue() == null
-                    ? null
-                    : entry.getValue().toString();
+            String newValue = entry.getValue() == null ? null : entry.getValue().toString();
 
             // Blocca modifica tipologia se utente è Admin
             if ("tipologia".equalsIgnoreCase(field)) {
@@ -193,6 +194,7 @@ public class ClienteResource {
                 }
             }
 
+            // Chiama il service per aggiornare il campo (deve supportare anche "nome")
             boolean updated = clienteService.updateCliente(idUtente, field, newValue);
             if (!updated) {
                 return Response.status(Response.Status.BAD_REQUEST)
@@ -201,6 +203,7 @@ public class ClienteResource {
             }
         }
 
+        // Ricarica il cliente aggiornato e restituisci risposta
         Cliente clienteAggiornato = clienteService.getCliente(idUtente);
         ClienteResponse responseDto = clienteService.parseResponse(clienteAggiornato);
         return Response.ok(responseDto).build();
