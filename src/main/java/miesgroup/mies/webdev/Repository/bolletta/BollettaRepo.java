@@ -3,6 +3,8 @@ package miesgroup.mies.webdev.Repository.bolletta;
 
 import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import miesgroup.mies.webdev.Model.bolletta.BollettaPod;
 import miesgroup.mies.webdev.Model.bolletta.dettaglioCosto;
 import miesgroup.mies.webdev.Model.Periodo;
@@ -13,6 +15,9 @@ import java.util.Map;
 
 @ApplicationScoped
 public class BollettaRepo implements PanacheRepositoryBase<BollettaPod, Integer> {
+
+    @PersistenceContext
+    EntityManager em;
 
     private final dettaglioCostoRepo costiRepo;
     private final PodRepo podRepo;
@@ -344,6 +349,23 @@ public class BollettaRepo implements PanacheRepositoryBase<BollettaPod, Integer>
 
     public List<BollettaPod> findByUserId(int userId) {
         return find("idUser", userId).list();
+    }
+
+    public AggregatoBollette getAggregatiPerPodAnnoMese(String podId, Integer anno, Integer mese) {
+        String jpql = "SELECT SUM(b.totAttiva), SUM(b.speseEnergia), SUM(b.oneri) " +
+                "FROM BollettaPod b WHERE b.idPod = :podId AND b.anno = :anno AND b.mese = :mese";
+
+        Object[] result = (Object[]) em.createQuery(jpql)
+                .setParameter("podId", podId)
+                .setParameter("anno", anno)
+                .setParameter("mese", mese)
+                .getSingleResult();
+
+        return new AggregatoBollette(
+                (Double) result[0],  // somma totAttiva
+                (Double) result[1],  // somma speseEnergia
+                (Double) result[2]   // somma oneri (se usati)
+        );
     }
 
 }

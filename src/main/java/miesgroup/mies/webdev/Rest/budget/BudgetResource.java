@@ -11,6 +11,7 @@ import miesgroup.mies.webdev.Model.cliente.Cliente;
 import miesgroup.mies.webdev.Repository.budget.BudgetRepo;
 import miesgroup.mies.webdev.Service.budget.BudgetService;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -26,11 +27,57 @@ public class BudgetResource {
     @Inject
     BudgetRepo budgetRepo;
 
+    @Inject
+    BudgetService budgetService;
+
+    /**
+     * GET /budget/{pod}/{anno}
+     * Se i dati per anno richiesto non esistono,
+     * prova a clonare quelli dell'anno precedente creando nuove righe.
+     */
     @GET
     @Path("/{pod}/{anno}")
+    @Transactional
     public Response getByPodAndAnno(@PathParam("pod") String pod,
                                     @PathParam("anno") Integer anno) {
+
         List<Budget> list = service.getBudgetsPerPodEAnno(pod, anno);
+
+        if (list == null || list.isEmpty()) {
+            // Prova a clonare dati anno precedente
+            List<Budget> datiPrecedenti = service.getBudgetsPerPodEAnno(pod, anno - 1);
+
+            if (datiPrecedenti == null || datiPrecedenti.isEmpty()) {
+                return Response.status(Response.Status.NOT_FOUND)
+                        .entity(Map.of("error", "Dati base " + anno + " non trovati e nessun anno precedente disponibile"))
+                        .build();
+            }
+
+            List<Budget> nuoviDati = new ArrayList<>();
+            for (Budget b : datiPrecedenti) {
+                Budget clone = new Budget();
+                clone.setPod((String) b.getIdPod());
+                clone.setAnno(anno);
+                clone.setMese(b.getMese());
+                clone.setPrezzoEnergiaBase(b.getPrezzoEnergiaBase());
+                clone.setConsumiBase(b.getConsumiBase());
+                clone.setOneriBase(b.getOneriBase());
+
+                // Percentuali a zero (valori base non modificati)
+                clone.setPrezzoEnergiaPerc(0.0);
+                clone.setConsumiPerc(0.0);
+                clone.setOneriPerc(0.0);
+
+                // Imposta cliente uguale (o gestisci secondo il tuo modello)
+                clone.setCliente(b.getCliente());
+
+                budgetRepo.persist(clone);
+                nuoviDati.add(clone);
+            }
+
+            return Response.ok(nuoviDati).build();
+        }
+
         return Response.ok(list).build();
     }
 
@@ -39,6 +86,13 @@ public class BudgetResource {
     public Response getSingolo(@PathParam("pod") String pod,
                                @PathParam("anno") Integer anno,
                                @PathParam("mese") Integer mese) {
+        try {
+            // Aggiorna il budget calcolando i dati base da bolletta (se implementato)
+            service.aggiornaBudgetDaBolletta(pod, anno, mese);
+        } catch (IllegalArgumentException e) {
+            // Puoi loggare o gestire errore qui
+        }
+
         Optional<Budget> b = service.getBudgetSingolo(pod, anno, mese);
         return b.map(Response::ok)
                 .orElse(Response.status(Response.Status.NOT_FOUND)
@@ -49,7 +103,7 @@ public class BudgetResource {
     /**
      * PUT /budget/previsioni?pod=...&anno=...&mese=...
      * Aggiorna o inserisce le percentuali di previsione.
-     * Body JSON: {"prezzoEnergiaPerc":Double, "consumiPerc":Double, "oneriPerc":Double}
+     * Se il record non esiste, tenta di copiare i dati base 2025 come base.
      */
     @PUT
     @Path("/previsioni")
@@ -67,41 +121,42 @@ public class BudgetResource {
         Budget budget;
 
         if (existing.isPresent()) {
-            // Se esiste già record per anno richiesto, aggiorna solo percentuali
             budget = existing.get();
             budget.setPrezzoEnergiaPerc(prezzoPerc);
             budget.setConsumiPerc(consumiPerc);
             budget.setOneriPerc(oneriPerc);
         } else {
-            // Altrimenti crea nuovo record copiando base dal 2025, poi aggiorna percentuali
-            Optional<Budget> base2025Opt = budgetRepo.findByPodAnnoMese(podId, 2025, mese);
-            if (base2025Opt.isEmpty()) {
+            // Clona dati base dall'anno precedente se presente, altrimenti usa 2025 come fallback
+            Optional<Budget> baseOpt = budgetRepo.findByPodAnnoMese(podId, anno, mese);
+            if (baseOpt.isEmpty()) {
+                baseOpt = budgetRepo.findByPodAnnoMese(podId, 2025, mese);
+            }
+            if (baseOpt.isEmpty()) {
                 return Response.status(Response.Status.NOT_FOUND)
-                        .entity(Map.of("error", "Dati base 2025 non trovati"))
+                        .entity(Map.of("error", "Dati base non trovati per creazione nuovo record"))
                         .build();
             }
-            Budget base2025 = base2025Opt.get();
+
+            Budget base = baseOpt.get();
             budget = new Budget();
             budget.setPod(podId);
             budget.setAnno(anno);
             budget.setMese(mese);
-            // Copia valori base dal 2025
-            budget.setPrezzoEnergiaBase(base2025.getPrezzoEnergiaBase());
-            budget.setConsumiBase(base2025.getConsumiBase());
-            budget.setOneriBase(base2025.getOneriBase());
-
-            // Setta percentuali modificate da client
+            budget.setPrezzoEnergiaBase(base.getPrezzoEnergiaBase());
+            budget.setConsumiBase(base.getConsumiBase());
+            budget.setOneriBase(base.getOneriBase());
             budget.setPrezzoEnergiaPerc(prezzoPerc);
             budget.setConsumiPerc(consumiPerc);
             budget.setOneriPerc(oneriPerc);
+            budget.setCliente(base.getCliente());
         }
 
+        // Assumi cliente id 1 (modifica come necessario per sessione reale)
         Cliente cliente = new Cliente();
-        cliente.setId(1); // Ottenere id reale utente dalla sessione/security
+        cliente.setId(1);
         budget.setCliente(cliente);
 
-        boolean ok = budgetRepo.saveOrUpdate(budget);
-
+        boolean ok = budgetRepo.upsert(budget);
         if (!ok) {
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                     .entity(Map.of("error", "Errore nel salvataggio"))
@@ -110,19 +165,60 @@ public class BudgetResource {
         return Response.noContent().build();
     }
 
+    /**
+     * GET /budget/prezzo-unitario?pod=...&anno=...&mese=...
+     * Calcola e restituisce il prezzo unitario = prezzoEnergiaBase / consumiBase
+     */
+    @GET
+    @Path("/prezzo-unitario")
+    public Response getPrezzoUnitario(
+            @QueryParam("pod") String podId,
+            @QueryParam("anno") Integer anno,
+            @QueryParam("mese") Integer mese
+    ) {
+        if (podId == null || anno == null || mese == null) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity("Parametri pod, anno e mese obbligatori")
+                    .build();
+        }
 
-    private Double extractDouble(Map<String, Object> body, String prezzoEnergiaPerc, double v) {
-        Object value = body.get(prezzoEnergiaPerc);
+        Optional<Budget> optBudget = budgetService.getBudgetSingolo(podId, anno, mese);
+        if (optBudget.isEmpty()) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity("Budget non trovato per pod, anno e mese specificati")
+                    .build();
+        }
+
+        Budget budget = optBudget.get();
+
+        if (budget.getConsumiBase() == null || budget.getConsumiBase() == 0) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity("Consumi base nulli o zero")
+                    .build();
+        }
+        if (budget.getPrezzoEnergiaBase() == null || budget.getPrezzoEnergiaBase() <= 0) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity("Prezzo energia base nullo o negativo")
+                    .build();
+        }
+
+        double prezzoUnitario = budget.getPrezzoEnergiaBase() / budget.getConsumiBase();
+
+        return Response.ok(prezzoUnitario).build();
+    }
+
+    private Double extractDouble(Map<String, Object> body, String key, double defaultValue) {
+        Object value = body.get(key);
         if (value instanceof Number) {
             return ((Number) value).doubleValue();
         } else if (value instanceof String) {
             try {
                 return Double.parseDouble((String) value);
             } catch (NumberFormatException e) {
-                return v; // ritorna il valore di default se non è un numero valido
+                return defaultValue;
             }
         }
-        return v; // ritorna il valore di default se non presente o non convertibile
+        return defaultValue;
     }
 
 }

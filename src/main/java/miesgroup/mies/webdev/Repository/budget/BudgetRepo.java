@@ -14,9 +14,14 @@ public class BudgetRepo implements PanacheRepositoryBase<Budget, Long> {
      * Inserisce o aggiorna un record Budget.
      */
     public boolean upsert(Budget budget) {
-        persist(budget);
+        if (budget.getId() == null) {
+            persist(budget);
+        } else {
+            budget = getEntityManager().merge(budget);
+        }
         return budget.getId() != null;
     }
+
 
     /**
      * Recupera tutti i Budget per un dato POD e anno.
@@ -50,14 +55,5 @@ public class BudgetRepo implements PanacheRepositoryBase<Budget, Long> {
      */
     public boolean aggiungiBudget(Budget budget) {
         return upsert(budget);
-    }
-
-    public boolean saveOrUpdate(Budget budget) {
-        if (budget.getId() == null) {
-            persist(budget);
-        } else {
-            budget = getEntityManager().merge(budget);
-        }
-        return budget.getId() != null;
     }
 }

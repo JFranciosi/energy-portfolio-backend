@@ -1,10 +1,15 @@
-// BudgetService.java
 package miesgroup.mies.webdev.Service.budget;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
+import miesgroup.mies.webdev.Model.bolletta.BollettaPod;
 import miesgroup.mies.webdev.Model.budget.Budget;
+import miesgroup.mies.webdev.Repository.bolletta.AggregatoBollette;
+import miesgroup.mies.webdev.Repository.bolletta.BollettaRepo;
 import miesgroup.mies.webdev.Repository.budget.BudgetRepo;
+import miesgroup.mies.webdev.Rest.Model.BudgetDto;
 
 import java.util.List;
 import java.util.Optional;
@@ -12,7 +17,12 @@ import java.util.Optional;
 @ApplicationScoped
 public class BudgetService {
 
-    private final BudgetRepo budgetRepo;
+    @Inject
+    BudgetRepo budgetRepo;
+    @Inject
+    BollettaRepo bollettaRepo;
+    @Inject
+    EntityManager em;
 
     public BudgetService(BudgetRepo budgetRepo) {
         this.budgetRepo = budgetRepo;
@@ -69,7 +79,6 @@ public class BudgetService {
             // aggiorna entity (JPA fa update automatico)
             return true;
         } else {
-            // crea nuovo budget con valori base da qualche parte, se servono
             budget = new Budget();
             budget.setPodId(podId);
             budget.setAnno(anno);
@@ -77,8 +86,7 @@ public class BudgetService {
             budget.setPrezzoEnergiaPerc(prezzoPerc);
             budget.setConsumiPerc(consumiPerc);
             budget.setOneriPerc(oneriPerc);
-            // Imposta valori base se puoi recuperarli, altrimenti metti 0 o default
-            budget.setPrezzoEnergiaBase(0.1); // esempio
+            budget.setPrezzoEnergiaBase(0.1); // default
             budget.setConsumiBase(0.0);
             budget.setOneriBase(0.0);
             return budgetRepo.aggiungiBudget(budget);
@@ -96,4 +104,57 @@ public class BudgetService {
                 .distinct()
                 .toList();
     }
+
+    /**
+     * Aggiorna il Budget a partire dai dati aggregati della bolletta
+     */
+    @Transactional
+    public void aggiornaBudgetDaBolletta(String podId, Integer anno, Integer mese) {
+        AggregatoBollette agg = bollettaRepo.getAggregatiPerPodAnnoMese(podId, anno, mese);
+        if (agg == null || agg.getConsumoTotale() == null || agg.getConsumoTotale() == 0) {
+            throw new IllegalArgumentException("Dati bolletta insufficienti o zero consumo");
+        }
+        if (agg.getSpesaEnergiaTotale() == null || agg.getSpesaEnergiaTotale() <= 0) {
+            throw new IllegalArgumentException("Spesa energia totale nulla o negativa");
+        }
+
+        // Calcolo corretto del prezzo energia base (€/kWh)
+        double prezzoEnergiaBase = agg.getSpesaEnergiaTotale() / agg.getConsumoTotale();
+
+        // Controllo valori anomali per sicurezza
+        if (prezzoEnergiaBase <= 0 || prezzoEnergiaBase > 5) {
+            throw new IllegalArgumentException("Prezzo energia base anomalo: " + prezzoEnergiaBase
+                    + " (Spesa: " + agg.getSpesaEnergiaTotale() + ", Consumo: " + agg.getConsumoTotale() + ")");
+        }
+
+        Optional<Budget> optBudget = budgetRepo.findByPodAnnoMese(podId, anno, mese);
+        Budget budget = optBudget.orElseGet(() -> {
+            Budget b = new Budget();
+            b.setPodId(podId);
+            b.setAnno(anno);
+            b.setMese(mese);
+            b.setPrezzoEnergiaPerc(0.0);
+            b.setConsumiPerc(0.0);
+            b.setOneriPerc(0.0);
+            return b;
+        });
+
+        // Salva i valori base calcolati
+        budget.setPrezzoEnergiaBase(prezzoEnergiaBase);
+        budget.setConsumiBase(agg.getConsumoTotale());
+        budget.setOneriBase(agg.getOneriTotale() != null ? agg.getOneriTotale() : 0.0);
+
+        budgetRepo.upsert(budget);
+    }
+
+    public double calcolaPrezzoEnergiaUnitarioDaBudget(Budget budget) {
+        if (budget == null) throw new IllegalArgumentException("Budget nullo");
+        if (budget.getConsumiBase() == null || budget.getConsumiBase() == 0)
+            throw new IllegalArgumentException("Consumi base nulli o zero");
+        if (budget.getPrezzoEnergiaBase() == null || budget.getPrezzoEnergiaBase() <= 0)
+            throw new IllegalArgumentException("Prezzo energia base nullo o negativo");
+
+        return budget.getPrezzoEnergiaBase() / budget.getConsumiBase();
+    }
+
 }

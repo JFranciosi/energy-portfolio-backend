@@ -1,5 +1,6 @@
 package miesgroup.mies.webdev.Model.budget;
 
+import jakarta.json.bind.annotation.JsonbTransient;
 import jakarta.persistence.*;
 import miesgroup.mies.webdev.Model.cliente.Cliente;
 
@@ -7,8 +8,7 @@ import java.io.Serializable;
 
 @Entity
 @Table(name = "budget",
-        uniqueConstraints = @UniqueConstraint(name = "uk_budget_mese",
-                columnNames = {"id_pod","anno","mese"}))
+        uniqueConstraints = @UniqueConstraint(name = "uk_budget_mese", columnNames = {"id_pod","anno","mese"}))
 public class Budget implements Serializable {
 
     @Id
@@ -44,6 +44,7 @@ public class Budget implements Serializable {
 
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "Id_Utente", referencedColumnName = "Id_Utente")
+    @JsonbTransient
     private Cliente cliente;
 
     public Long getId() { return id; }
