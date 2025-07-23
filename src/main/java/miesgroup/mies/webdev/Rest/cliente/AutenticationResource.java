@@ -1,5 +1,6 @@
 package miesgroup.mies.webdev.Rest.cliente;
 
+import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.NewCookie;
@@ -13,15 +14,20 @@ import miesgroup.mies.webdev.Repository.cliente.ClienteRepo;
 import miesgroup.mies.webdev.Repository.cliente.SessionRepo;
 import miesgroup.mies.webdev.Service.cliente.AutenticationService;
 import miesgroup.mies.webdev.Service.cliente.ClienteService;
+import miesgroup.mies.webdev.Service.cliente.PasswordResetService;
 import miesgroup.mies.webdev.Service.exception.ClienteCreationException;
 import miesgroup.mies.webdev.Service.exception.SessionCreationException;
 import miesgroup.mies.webdev.Service.exception.WrongUsernameOrPasswordException;
 import miesgroup.mies.webdev.Service.cliente.SessionService;
 
+import java.util.Map;
 import java.util.Optional;
 
 @Path("/Autentication")
 public class AutenticationResource {
+
+    @Inject
+    PasswordResetService passwordResetService;
 
     private final AutenticationService autenticationService;
     private final ClienteService clienteService;
@@ -164,5 +170,25 @@ public class AutenticationResource {
                     .entity("Errore interno durante il controllo della categoria")
                     .build();
         }
+    }
+    @POST
+    @Path("/forgot-password")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Map<String, String> forgotPassword(Map<String, String> request) throws Exception {
+        String email = request.get("email");
+        passwordResetService.createAndSendResetToken(email);
+        return Map.of("message", "Email inviata");
+    }
+
+    @POST
+    @Path("/reset-password")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Map<String, String> resetPassword(Map<String, String> request) throws Exception {
+        String token = request.get("token");
+        String newPassword = request.get("password");
+        passwordResetService.resetPassword(token, newPassword);
+        return Map.of("message", "Password aggiornata con successo");
     }
 }
