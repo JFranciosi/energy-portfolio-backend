@@ -234,8 +234,8 @@ public class BollettaResource {
 
     @GET
     @Path("/{id}/download")
-    @Produces(MediaType.APPLICATION_OCTET_STREAM)
-    public Response downloadFile(@PathParam("id") int id) {
+    @Produces("application/pdf")
+    public Response viewPdf(@PathParam("id") int id) {
         PDFFile pdfFile = fileService.getFile(id);
         if (pdfFile == null) {
             return Response.status(Response.Status.NOT_FOUND).build();
@@ -243,8 +243,8 @@ public class BollettaResource {
         byte[] fileData = pdfFile.getFileData();
         String fileName = pdfFile.getFileName();
 
-        return Response.ok(fileData, MediaType.APPLICATION_OCTET_STREAM)
-                .header("Content-Disposition", "attachment; filename=\"" + fileName + "\"")
+        return Response.ok(fileData, "application/pdf")
+                .header("Content-Disposition", "inline; filename=\"" + fileName + "\"")
                 .build();
     }
 
