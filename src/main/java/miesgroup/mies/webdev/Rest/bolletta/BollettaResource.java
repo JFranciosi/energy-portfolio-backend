@@ -41,15 +41,16 @@ public class BollettaResource {
     @Produces(MediaType.TEXT_PLAIN)
     public Response uploadAndProcessFileA2A(@MultipartForm FileUploadForm form, @CookieParam("SESSION_COOKIE") int idSessione) {
         try {
+            System.out.println("[DEBUG] Inizio uploadAndProcessFileA2A");
 
-            //NON VA BENE BISOGNA PRIMA CONTROLLARE CHE IL FILE SIA POSSIBILE ANALIZZARLO SOLO DOPO SI FA IL SALVATAGGIO,
-            //SE NO SUCCEDE CHE SE PER ERRORI DI CONNESSIONE IL CLIENTE NON CARICA LA BOLLETTA DOBBIAMO AGIRE NOI PER RIMUOVERLA DAL DB E FARGLIELA RIMETTERE
-
-            // 1. Salva il file caricato e ottieni l'ID associato
-            int idFile = fileService.saveFile(form.getFileName(), form.getFileData());
+            // 1. Recupera nome e contenuto del file
+            String fileName = form.getFileName();
+            byte[] fileData = form.getFileData();
+            System.out.println("[DEBUG] File ricevuto: " + fileName + ", dimensione: " + (fileData != null ? fileData.length : 0));
 
             // 2. Recupera l'idUser dalla sessione
             Integer idUser = sessioneRepo.getUserIdBySessionId(idSessione);
+            System.out.println("[DEBUG] idSessione: " + idSessione + ", idUser: " + idUser);
             if (idUser == null) {
                 return Response.status(Response.Status.UNAUTHORIZED)
                         .entity("<error>Utente non autenticato (sessione non valida)</error>")
@@ -57,60 +58,79 @@ public class BollettaResource {
             }
 
             // 3. Converte il file PDF caricato in un documento XML
-            Document xmlDocument = fileService.convertPdfToXml(form.getFileData());
+            Document xmlDocument = fileService.convertPdfToXml(fileData);
+            System.out.println("[DEBUG] Conversione PDF -> XML completata");
 
             // 4. Converte il documento XML in una stringa
             String xmlString = fileService.convertDocumentToString(xmlDocument);
             byte[] xmlData = xmlString.getBytes();
+            System.out.println("[DEBUG] Conversione XML -> stringa completata. Lunghezza byte: " + xmlData.length);
 
-            // 5. Estrae l'ID del POD dal documento XML usando i dati della sessione
+            // 5. Estrae l'ID del POD
             String idPod = podService.extractValuesFromXml(xmlData, idSessione);
+            System.out.println("[DEBUG] idPod estratto (RAW): '" + idPod + "'");
+            System.out.println("[DEBUG] Lunghezza: " + idPod.length());
 
-            // Verifica che l'ID del POD sia stato estratto correttamente
+            for (int i = 0; i < idPod.length(); i++) {
+                System.out.println("[DEBUG] Char " + i + ": '" + idPod.charAt(i) + "' (int: " + (int) idPod.charAt(i) + ")");
+            }
+
             if (idPod == null || idPod.isEmpty()) {
                 return Response.status(Response.Status.BAD_REQUEST)
                         .entity("Impossibile estrarre l'ID del POD dal documento XML.")
                         .build();
             }
 
-            // 6. Estrai i dati della bolletta dal documento XML e inseriscili nel database, **ora con idUser**
-            String nomeB = fileService.extractValuesFromXmlA2A(xmlData, idPod, idUser); // AGGIUNGI idUser QUI
+            // 6. Estrai i dati della bolletta
+            String nomeB = fileService.extractValuesFromXmlA2A(xmlData, idPod);
+            System.out.println("[DEBUG] nomeB (nome bolletta): " + nomeB);
+
             if (nomeB == null || nomeB.isEmpty()) {
                 return Response.status(Response.Status.BAD_REQUEST)
                         .entity("Impossibile estrarre i dati della bolletta dal documento XML.")
                         .build();
             }
 
-            // 7. effettua i vari calcoli per verificare la correttezza dei dati
+            // 7. Verifica dati bolletta
             fileService.verificaA2APiuMesi(nomeB);
+            System.out.println("[DEBUG] verificaA2APiuMesi completata");
 
-            // 8. verifica di possibili ricalcoli
+            // 8. Controllo ricalcoli
             fileService.controlloRicalcoliInBolletta(xmlData, idPod, nomeB, idSessione);
+            System.out.println("[DEBUG] controlloRicalcoliInBolletta completato");
 
-            // 9. Associa l'ID del POD con l'ID del file caricato
+            // 9. Salva il file solo dopo tutte le verifiche
+            int idFile = fileService.saveFile(fileName, fileData);
+            System.out.println("[DEBUG] File salvato con idFile: " + idFile);
+
+            // 10. Associa l'ID POD al file
             fileService.abbinaPod(idFile, idPod);
+            System.out.println("[DEBUG] POD associato al file");
 
-            // 10. Restituisci una risposta di successo
+            // 11. Restituisci risposta
+            System.out.println("[DEBUG] Fine uploadAndProcessFileA2A - Successo");
             return Response.status(Response.Status.OK)
                     .entity("<message>File caricato e processato con successo.</message>")
                     .build();
+
         } catch (IOException | ParserConfigurationException | TransformerException | SQLException e) {
-            // Gestione di errori specifici relativi al salvataggio, alla conversione o al database
+            System.out.println("[ERROR] Errore tecnico: " + e.getMessage());
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                     .entity("<error>" + e.getMessage() + "</error>")
                     .build();
         } catch (IllegalArgumentException e) {
-            // Gestione di input non validi
+            System.out.println("[ERROR] Input non valido: " + e.getMessage());
             return Response.status(Response.Status.BAD_REQUEST)
                     .entity("<error>Input non valido: " + e.getMessage() + "</error>")
                     .build();
         } catch (Exception e) {
-            // Gestione di errori generici o imprevisti
+            System.out.println("[ERROR] Errore generico: " + e.getMessage());
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                     .entity("<error>Si è verificato un errore inaspettato: " + e.getMessage() + "</error>")
                     .build();
         }
     }
+
 
 
     @Path("/upload-multiplo")
@@ -163,7 +183,7 @@ public class BollettaResource {
                 }
 
                 // --- AGGIUNGI idUser qui ---
-                String nomeB = fileService.extractValuesFromXmlA2A(xmlData, idPod, idUser);
+                String nomeB = fileService.extractValuesFromXmlA2A(xmlData, idPod);
                 if (nomeB == null || nomeB.isEmpty()) {
                     result.put("status", "error");
                     result.put("message", "Impossibile estrarre i dati della bolletta dal documento XML.");

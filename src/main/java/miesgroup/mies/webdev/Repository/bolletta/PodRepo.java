@@ -87,4 +87,14 @@ public class PodRepo implements PanacheRepositoryBase<Pod, String> {
             throw new PodNotFound("POD con ID " + idPod + " non trovato.");
         }
     }
+
+    public Double getPotenzaImpegnata(String idPod) {
+        Pod pod = find("id", idPod).firstResult();
+        return pod != null ? pod.getPotenzaImpegnata() : 0.0;
+    }
+
+    public String getTipoTensione(String idPod) {
+        Pod pod = find("id", idPod).firstResult();
+        return pod != null ? pod.getTipoTensione() : null;
+    }
 }

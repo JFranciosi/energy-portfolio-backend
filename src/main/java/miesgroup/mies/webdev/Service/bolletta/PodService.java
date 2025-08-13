@@ -6,7 +6,7 @@ import miesgroup.mies.webdev.Model.bolletta.BollettaPod;
 import miesgroup.mies.webdev.Model.cliente.Cliente;
 import miesgroup.mies.webdev.Model.file.PDFFile;
 import miesgroup.mies.webdev.Model.bolletta.Pod;
-import miesgroup.mies.webdev.Repository.bolletta.BollettaRepo;
+import miesgroup.mies.webdev.Repository.bolletta.BollettaPodRepo;
 import miesgroup.mies.webdev.Repository.bolletta.FixingRepo;
 import miesgroup.mies.webdev.Repository.bolletta.PodRepo;
 import miesgroup.mies.webdev.Repository.budget.BudgetRepo;
@@ -39,7 +39,7 @@ public class PodService {
     private final SessionRepo sessionRepo;
     private final ClienteRepo clienteRepo;
     private final BudgetRepo budgetRepo;
-    private final BollettaRepo bollettaRepo;
+    private final BollettaPodRepo bollettaRepo;
 
     public PodService(
             PodRepo podRepo,
@@ -48,7 +48,7 @@ public class PodService {
             ClienteRepo clienteRepo,
             FixingRepo fixingRepo,
             BudgetRepo budgetRepo,
-            BollettaRepo bollettaRepo
+            BollettaPodRepo bollettaRepo
     ) {
         this.podRepo = podRepo;
         this.sessionService = sessionService;
@@ -229,8 +229,8 @@ public class PodService {
                         p.getId(), String.valueOf(anno), String.valueOf(m)
                 );
                 for (BollettaPod b : bl) {
-                    if (b.getSpeseEnergia() != null && b.getTotAttiva() != null && b.getTotAttiva() > 0) {
-                        sumP += b.getSpeseEnergia() / b.getTotAttiva();
+                    if (b.getSpeseEne() != null && b.getTotAtt() != null && b.getTotAtt() > 0) {
+                        sumP += b.getSpeseEne() / b.getTotAtt();
                         sumO += b.getOneri() != null ? b.getOneri() : 0;
                         cnt++;
                     }

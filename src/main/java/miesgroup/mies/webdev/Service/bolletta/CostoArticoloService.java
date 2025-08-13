@@ -18,15 +18,11 @@ import java.util.List;
 public class CostoArticoloService {
 
     private final CostoArticoloRepo costoArticoloRepo;
-    private final SessionService sessionService;
-    private final ClienteService clienteService;
     private final PodService podService;
-    private final BollettaService bolletteService;
+    private final BollettaPodService bolletteService;
 
-    public CostoArticoloService(CostoArticoloRepo costoArticoloRepo, SessionService sessionService, ClienteService clienteService, PodService podService, BollettaService bolletteService) {
+    public CostoArticoloService(CostoArticoloRepo costoArticoloRepo, SessionService sessionService, ClienteService clienteService, PodService podService, BollettaPodService bolletteService) {
         this.costoArticoloRepo = costoArticoloRepo;
-        this.sessionService = sessionService;
-        this.clienteService = clienteService;
         this.podService = podService;
         this.bolletteService = bolletteService;
     }
@@ -39,7 +35,7 @@ public class CostoArticoloService {
 
                 case "€/KWh" ->
                     // Calcola il costo dell'articolo in base al consumo e al costo unitario
-                        articolo.getCosto() * b.getTotAttiva();
+                        articolo.getCosto() * b.getTotAtt();
                 case "€/KW/Month" ->
                     // Calcola il costo dell'articolo in base al consumo e al costo unitario
                         articolo.getCosto() * maggiorePotenza;

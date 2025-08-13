@@ -7,7 +7,7 @@ import miesgroup.mies.webdev.Model.bolletta.BollettaPod;
 import miesgroup.mies.webdev.Model.cliente.Cliente;
 import miesgroup.mies.webdev.Model.bolletta.Pod;
 import miesgroup.mies.webdev.Model.cliente.Sessione;
-import miesgroup.mies.webdev.Repository.bolletta.BollettaRepo;
+import miesgroup.mies.webdev.Repository.bolletta.BollettaPodRepo;
 import miesgroup.mies.webdev.Repository.bolletta.PodRepo;
 
 import javax.sql.DataSource;
@@ -33,7 +33,7 @@ public class SessionRepo implements PanacheRepositoryBase<Sessione, Integer> {
     PodRepo podRepo;
 
     @Inject
-    BollettaRepo bollettaRepo;
+    BollettaPodRepo bollettaRepo;
 
 
     public int insertSession(int idUtente) {

@@ -7,7 +7,7 @@ import jakarta.transaction.Transactional;
 import miesgroup.mies.webdev.Model.bolletta.BollettaPod;
 import miesgroup.mies.webdev.Model.budget.Budget;
 import miesgroup.mies.webdev.Repository.bolletta.AggregatoBollette;
-import miesgroup.mies.webdev.Repository.bolletta.BollettaRepo;
+import miesgroup.mies.webdev.Repository.bolletta.BollettaPodRepo;
 import miesgroup.mies.webdev.Repository.budget.BudgetRepo;
 import miesgroup.mies.webdev.Rest.Model.BudgetDto;
 
@@ -20,7 +20,7 @@ public class BudgetService {
     @Inject
     BudgetRepo budgetRepo;
     @Inject
-    BollettaRepo bollettaRepo;
+    BollettaPodRepo bollettaRepo;
     @Inject
     EntityManager em;
 

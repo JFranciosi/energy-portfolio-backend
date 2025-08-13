@@ -10,7 +10,7 @@ import org.hibernate.annotations.ColumnDefault;
 public class Pod extends PanacheEntityBase {
 
     @Id
-    @Column(name = "Id_Pod", length = 14) // Nome corretto della colonna
+    @Column(name = "Id_Pod", length = 255) // Nome corretto della colonna
     private String id;
 
     @Column(name = "Tensione_Alimentazione", nullable = false)
