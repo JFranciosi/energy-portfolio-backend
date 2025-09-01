@@ -133,7 +133,9 @@ public class verBollettaPod extends PanacheEntityBase {
     @Column(name = "Distr_QPot") private Double distrQPot;
     @Column(name = "Mis_QFix")   private Double misQFix;
     @Column(name = "Distr_QFix") private Double distrQFix;
-
+    //Energia Verde
+    @Column(name = "En_Ve_Kwh") private Double enVeKwh;
+    @Column(name = "En_Ve_Euro") private Double enVeEuro;
     // Audit
     @Column(name = "created_at", updatable = false, insertable = false)
     private LocalDateTime createdAt;
@@ -317,6 +319,19 @@ public class verBollettaPod extends PanacheEntityBase {
     public void setMisQFix(Double misQFix) { this.misQFix = misQFix; }
     public Double getDistrQFix() { return distrQFix; }
     public void setDistrQFix(Double distrQFix) { this.distrQFix = distrQFix; }
+
+    public Double getEnVeKwh() {
+        return enVeKwh;
+    }
+    public void setEnVeKwh(Double enVeKwh) {
+        this.enVeKwh = enVeKwh;
+    }
+    public Double getEnVeEuro() {
+        return enVeEuro;
+    }
+    public void setEnVeEuro(Double enVeEuro) {
+        this.enVeEuro = enVeEuro;
+    }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

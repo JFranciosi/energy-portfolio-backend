@@ -81,6 +81,8 @@ public class BollettaResource {
                         .build();
             }
 
+            fileService.processaBolletta(xmlData,xmlDocument, idPod);
+/*
             // 6. Estrai i dati della bolletta
             String nomeB = fileService.extractValuesFromXmlA2A(xmlData, idPod);
             System.out.println("[DEBUG] nomeB (nome bolletta): " + nomeB);
@@ -96,12 +98,14 @@ public class BollettaResource {
             System.out.println("[DEBUG] verificaA2APiuMesi completata");
 
             // 8. Controllo ricalcoli
-            fileService.controlloRicalcoliInBolletta(xmlData, idPod, nomeB, idSessione);
+            //fileService.controlloRicalcoliInBolletta(xmlData, idPod, nomeB, idSessione);
             System.out.println("[DEBUG] controlloRicalcoliInBolletta completato");
+            */
 
             // 9. Salva il file solo dopo tutte le verifiche
             int idFile = fileService.saveFile(fileName, fileData);
             System.out.println("[DEBUG] File salvato con idFile: " + idFile);
+
 
             // 10. Associa l'ID POD al file
             fileService.abbinaPod(idFile, idPod);
@@ -113,11 +117,13 @@ public class BollettaResource {
                     .entity("<message>File caricato e processato con successo.</message>")
                     .build();
 
+
         } catch (IOException | ParserConfigurationException | TransformerException | SQLException e) {
             System.out.println("[ERROR] Errore tecnico: " + e.getMessage());
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                     .entity("<error>" + e.getMessage() + "</error>")
                     .build();
+
         } catch (IllegalArgumentException e) {
             System.out.println("[ERROR] Input non valido: " + e.getMessage());
             return Response.status(Response.Status.BAD_REQUEST)
@@ -130,8 +136,6 @@ public class BollettaResource {
                     .build();
         }
     }
-
-
 
     @Path("/upload-multiplo")
     @POST
@@ -174,6 +178,7 @@ public class BollettaResource {
                 String xmlString = fileService.convertDocumentToString(xmlDocument);
                 byte[] xmlData = xmlString.getBytes();
                 String idPod = podService.extractValuesFromXml(xmlData, idSessione);
+                fileService.processaBolletta(xmlData,xmlDocument, idPod);
 
                 if (idPod == null || idPod.isEmpty()) {
                     result.put("status", "error");
@@ -181,7 +186,7 @@ public class BollettaResource {
                     results.add(result);
                     continue;
                 }
-
+/*
                 // --- AGGIUNGI idUser qui ---
                 String nomeB = fileService.extractValuesFromXmlA2A(xmlData, idPod);
                 if (nomeB == null || nomeB.isEmpty()) {
@@ -192,11 +197,13 @@ public class BollettaResource {
                 }
 
                 fileService.verificaA2APiuMesi(nomeB);
-                fileService.controlloRicalcoliInBolletta(xmlData, idPod, nomeB, idSessione);
+                //fileService.controlloRicalcoliInBolletta(xmlData, idPod, nomeB, idSessione);
                 fileService.abbinaPod(idFile, idPod);
 
                 result.put("status", "success");
                 result.put("message", "File caricato e processato con successo.");
+
+ */
             } catch (Exception e) {
                 result.put("status", "error");
                 result.put("message", e.getMessage());
@@ -249,8 +256,6 @@ public class BollettaResource {
                     .build();
         }
     }
-
-
 
     @GET
     @Path("/{id}/download")

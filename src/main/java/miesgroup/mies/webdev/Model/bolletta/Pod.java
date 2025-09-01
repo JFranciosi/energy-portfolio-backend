@@ -45,6 +45,9 @@ public class Pod extends PanacheEntityBase {
     @ColumnDefault("0.0")
     private Double spread;
 
+    @Column(name = "PeriodFattur")
+    private String periodFattur;
+
     // GETTER e SETTER
 
     public String getId() {
@@ -135,4 +138,12 @@ public class Pod extends PanacheEntityBase {
         this.cap = cap;
     }
 
+
+    public String getPeriodFattur() {
+        return periodFattur;
+    }
+
+    public void setPeriodFattur(String periodFattur) {
+        this.periodFattur = periodFattur;
+    }
 }

@@ -134,6 +134,9 @@ public class BollettaPod extends PanacheEntityBase {
     @Column(name = "QPotOn_ASOS") private Double qPotOnASOS;
     @Column(name = "QPotOn_ARIM") private Double qPotOnARIM;
 
+    //Energia Verde
+    @Column(name = "En_Ve_Euro") private Double enVeEuro;
+
     /* =========================
        Getters & Setters
        ========================= */
@@ -311,6 +314,13 @@ public class BollettaPod extends PanacheEntityBase {
     public void setQPotOnASOS(Double qPotOnASOS) { this.qPotOnASOS = qPotOnASOS; }
     public Double getQPotOnARIM() { return qPotOnARIM; }
     public void setQPotOnARIM(Double qPotOnARIM) { this.qPotOnARIM = qPotOnARIM; }
+    public Double getEnVeEuro() {
+        return enVeEuro;
+    }
+    public void setEnVeEuro(Double enVeEuro) {
+        this.enVeEuro = enVeEuro;
+    }
+
 
     // Alias comodo per Panache (compat con vecchio codice, se usato)
     public Integer getIdFile() { return id; }

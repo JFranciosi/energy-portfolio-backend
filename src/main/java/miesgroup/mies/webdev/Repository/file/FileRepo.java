@@ -60,14 +60,65 @@ public class FileRepo implements PanacheRepositoryBase<PDFFile, Integer> {
     ) {
         System.out.println("🔍 INIZIO SALVATAGGIO DATABASE");
         System.out.println("   idPod: " + idPod);
-        System.out.println("   nomeBolletta: " + nomeBolletta);
+        System.out.println("   nomeBolletta (parametro): " + nomeBolletta);
         System.out.println("   periodo: " + periodo.getInizio() + " -> " + periodo.getFine());
+        System.out.println("   mesi (chiavi lettureMese): " + lettureMese.keySet());
+        System.out.println("   mesi (chiavi spesePerMese): " + spesePerMese.keySet());
 
-        for (Map.Entry<String, Map<String, Map<String, Integer>>> meseEntry : lettureMese.entrySet()) {
+        // Normalizza le chiavi dei mesi in minuscolo (unificate)
+        Map<String, Map<String, Map<String, Integer>>> lettureNorm = canonizeMonthKeys2(lettureMese);
+        Map<String, Map<String, Double>>              speseNorm   = canonizeMonthKeys(spesePerMese);
+        Map<String, Map<String, Double>>              kwhNorm     = canonizeMonthKeys(kWhPerMese);
+
+// Log di controllo (facoltativo)
+        System.out.println("   mesi normalizzati (letture): " + lettureNorm.keySet());
+        System.out.println("   mesi normalizzati (spese)  : " + speseNorm.keySet());
+        System.out.println("   mesi normalizzati (kWh)    : " + kwhNorm.keySet());
+
+
+        for (Map.Entry<String, Map<String, Map<String, Integer>>> meseEntry : lettureNorm.entrySet()) {
             String mese = meseEntry.getKey();
             Map<String, Map<String, Integer>> categorie = meseEntry.getValue();
 
+            String compositeKey = (nomeBolletta != null ? nomeBolletta : "null") + "-" + mese;
             System.out.println("\n📅 PROCESSANDO MESE: " + mese);
+            System.out.println("🔑 CHIAVE UNIV. (NomeBolletta-Mese): " + compositeKey);
+            System.out.println("   spesePerMese.containsKey(" + mese + ")? " + speseNorm.containsKey(mese));
+
+            // 👉 DEBUG: verifico se esiste già in DB una riga con stessa (NomeBolletta, Mese)
+            try {
+                BollettaPod dupByNameMese = bollettaRepo.find("nomeBolletta = ?1 and mese = ?2", nomeBolletta, mese).firstResult();
+                if (dupByNameMese != null) {
+                    System.out.println("⚠️ TROVATO RECORD ESISTENTE (NomeBolletta, Mese) PRIMA DEL PERSIST:");
+                    System.out.println("   -> idPod=" + dupByNameMese.getIdPod()
+                            + " | nomeBolletta=" + dupByNameMese.getNomeBolletta()
+                            + " | mese=" + dupByNameMese.getMese()
+                            + " | anno=" + dupByNameMese.getAnno()
+                            + " | periodo=" + dupByNameMese.getPeriodoInizio() + " -> " + dupByNameMese.getPeriodoFine());
+                } else {
+                    System.out.println("✅ Nessun record con stessa (NomeBolletta, Mese) trovato PRIMA del persist.");
+                }
+            } catch (Exception e) {
+                System.out.println("❗️Errore in verifica (NomeBolletta, Mese): " + e.getMessage());
+            }
+
+            // 👉 DEBUG: verifico anche eventuale (idPod, Mese, Anno)
+            try {
+                BollettaPod dupByPodMeseAnno = bollettaRepo.find(
+                        "idPod = ?1 and mese = ?2 and anno = ?3", idPod, mese, periodo.getAnno()
+                ).firstResult();
+                if (dupByPodMeseAnno != null) {
+                    System.out.println("⚠️ TROVATO RECORD ESISTENTE (idPod, Mese, Anno) PRIMA DEL PERSIST:");
+                    System.out.println("   -> idPod=" + dupByPodMeseAnno.getIdPod()
+                            + " | nomeBolletta=" + dupByPodMeseAnno.getNomeBolletta()
+                            + " | mese=" + dupByPodMeseAnno.getMese()
+                            + " | anno=" + dupByPodMeseAnno.getAnno());
+                } else {
+                    System.out.println("✅ Nessun record con stessa (idPod, Mese, Anno) trovato PRIMA del persist.");
+                }
+            } catch (Exception e) {
+                System.out.println("❗️Errore in verifica (idPod, Mese, Anno): " + e.getMessage());
+            }
 
             // --- Letture (kWh/kVARh/kW per fascia) ---
             Double f1Att = getCategoriaConsumo(categorie, "Energia Attiva", "F1");
@@ -78,7 +129,7 @@ public class FileRepo implements PanacheRepositoryBase<PDFFile, Integer> {
             Double f2R   = getCategoriaConsumo(categorie, "Energia Reattiva", "F2");
             Double f3R   = getCategoriaConsumo(categorie, "Energia Reattiva", "F3");
 
-            // Nuove categorie: Reattiva Capacitiva/Induttiva IMMESSA
+            // Reattiva Capacitiva/Induttiva IMMESSA
             Double f1RCapI = getCategoriaConsumo(categorie, "Energia Reattiva Capacitiva Immessa", "F1");
             Double f2RCapI = getCategoriaConsumo(categorie, "Energia Reattiva Capacitiva Immessa", "F2");
             Double f3RCapI = getCategoriaConsumo(categorie, "Energia Reattiva Capacitiva Immessa", "F3");
@@ -91,62 +142,80 @@ public class FileRepo implements PanacheRepositoryBase<PDFFile, Integer> {
             Double f2Pot = getCategoriaConsumo(categorie, "Potenza", "F2");
             Double f3Pot = getCategoriaConsumo(categorie, "Potenza", "F3");
 
-            Double totAtt  = safeSum(f1Att, f2Att, f3Att);
+            Double totAtt   = safeSum(f1Att, f2Att, f3Att);
             Double totReatt = safeSum(f1R, f2R, f3R);
             Double totRCapI = safeSum(f1RCapI, f2RCapI, f3RCapI);
             Double totRIndI = safeSum(f1RIndI, f2RIndI, f3RIndI);
 
             // --- Spese in € per mese ---
-            Map<String, Double> speseMese = spesePerMese.getOrDefault(mese, Collections.emptyMap());
+            Map<String, Double> speseMese = speseNorm.getOrDefault(mese, Collections.emptyMap());
 
             System.out.println("💰 SPESE DISPONIBILI PER IL MESE:");
             speseMese.forEach((k, v) -> System.out.println("   " + k + ": " + v + " €"));
 
-            // Macro-voci (valori delle singole categorie - NON i totali)
-            Double speseTrasp   = getCI(speseMese, "Spesa per il trasporto e la gestione del contatore", "Trasporto e Gestione Contatore");
-            Double oneri        = getCI(speseMese, "Spesa per oneri di sistema", "Oneri di Sistema");
-            Double imposte      = getCI(speseMese, "Totale imposte", "TOTALE IMPOSTE");
-            Double dispacciamento = getCI(speseMese, "dispacciamento", "Corrispettivi di dispacciamento del");
+            Double speseTrasp     = getCI(speseMese, "Spesa per il trasporto e la gestione del contatore", "Trasporto e Gestione Contatore");
+            Double oneri          = getCI(speseMese, "Spesa per oneri di sistema", "Oneri di Sistema");
+            Double imposte        = getCI(speseMese, "Totale imposte", "TOTALE IMPOSTE");
+            Double dispacciamento = getCI(speseMese, "dispacciamento", "Corrispettivi di dispacciamento del", "Corrispettivi di dispacciamento Del.");
 
-            // Materia energia per fasce + perdite + (eventuali) picco/ fuori picco
-            Double f0Euro_   = getCI(speseMese, "Materia energia", "Quota vendita", "Materia Energia");
-            Double f1Euro_   = getCI(speseMese, "Materia energia f1", "Quota vendita f1");
-            Double f2Euro_   = getCI(speseMese, "Materia energia f2", "Quota vendita f2");
-            Double f3Euro_   = getCI(speseMese, "Materia energia f3", "Quota vendita f3");
+            Double f0Euro_ = getCI(speseMese, "Materia energia f0", "Quota vendita", "Materia Energia");
+            Double f1Euro_ = getCI(speseMese, "Materia energia f1", "Quota vendita f1");
+            Double f2Euro_ = getCI(speseMese, "Materia energia f2", "Quota vendita f2");
+            Double f3Euro_ = getCI(speseMese, "Materia energia f3", "Quota vendita f3");
 
             Double f1PerdEuro_ = getCI(speseMese, "Perdite f1");
             Double f2PerdEuro_ = getCI(speseMese, "Perdite f2");
             Double f3PerdEuro_ = getCI(speseMese, "Perdite f3");
 
-            Double euroPicco     = getCI(speseMese, "Picco", "corrispettivo mercato capacità ore picco");
-            Double euroFuoriPicco= getCI(speseMese, "Fuori Picco", "corrispettivo mercato capacità ore fuori");
+            Double euroPicco      = getCI(speseMese, "Picco", "corrispettivo mercato capacità ore picco");
+            Double euroFuoriPicco = getCI(speseMese, "Fuori Picco", "corrispettivo mercato capacità ore fuori");
 
-            // Penalità reattiva capacitiva immessa (ex Altro)
+            // --- Energia Verde ---
+            Double enVeEuro = getCI(speseMese, "Corrispettivo variabile", "Corrispettivo variabile di vendita energia");
+
+            Double totaleMateria = getCI(
+                    speseMese,
+                    "MATERIA_TOTALE",
+                    "Materia Energia_TOTALE",
+                    "TOTALE_MATERIA",
+                    "Spesa per la materia energia",
+                    "SPESA PER LA MATERIA ENERGIA"
+            );
+
+            Double speseEneComponenti = safeSum(
+                    f0Euro_, f1Euro_, f2Euro_, f3Euro_,
+                    f1PerdEuro_, f2PerdEuro_, f3PerdEuro_,
+                    euroPicco, euroFuoriPicco, dispacciamento
+            );
+
             Double penRCapI = getCI(speseMese, "Altro", "Penalità", "Penalita", "PENALITA_REATTIVA");
 
-            // Spesa energia totale (materia + perdite + picco + dispacciamento)
-            Double speseEne = safeSum(f0Euro_, f1Euro_, f2Euro_, f3Euro_, f1PerdEuro_, f2PerdEuro_, f3PerdEuro_, euroPicco, euroFuoriPicco, dispacciamento);
+            Double f1Pen33 = getCI(speseMese, "F1Penale33");
+            Double f1Pen75 = getCI(speseMese, "F1Penale75");
+            Double f2Pen33 = getCI(speseMese, "F2Penale33");
+            Double f2Pen75 = getCI(speseMese, "F2Penale75");
 
-            // --- ESTRAZIONE TOTALI ONERI E TRASPORTI (CORRETTA) ---
             Double totaleOneri = getCI(speseMese, "ONERI_TOTALE", "Oneri di Sistema_TOTALE", "TOTALE_ONERI");
             Double totaleTrasporti = getCI(speseMese, "TRASPORTI_TOTALE", "Trasporto e Gestione Contatore_TOTALE", "TOTALE_TRASPORTI");
 
             System.out.println("🔍 DEBUG TOTALI ESTRATTI:");
+            System.out.println("   totaleMateria (header): " + totaleMateria);
+            System.out.println("   speseEne (somma componenti): " + speseEneComponenti);
             System.out.println("   totaleOneri: " + totaleOneri);
             System.out.println("   totaleTrasporti: " + totaleTrasporti);
             System.out.println("   oneri (somma categorie): " + oneri);
             System.out.println("   speseTrasp (somma categorie): " + speseTrasp);
 
-            // Usa i totali specifici se disponibili (> 0), altrimenti la somma delle voci
             Double oneriFinale = (totaleOneri != null && totaleOneri > 0) ? totaleOneri : oneri;
             Double trasportiFinale = (totaleTrasporti != null && totaleTrasporti > 0) ? totaleTrasporti : speseTrasp;
+            Double speseEneFinale = (totaleMateria != null && totaleMateria > 0) ? totaleMateria : speseEneComponenti;
 
             System.out.println("✅ VALORI FINALI PER IL DATABASE:");
+            System.out.println("   speseEneFinale: " + speseEneFinale);
             System.out.println("   oneriFinale: " + oneriFinale);
             System.out.println("   trasportiFinale: " + trasportiFinale);
 
-            // --- kWh per mese (se presenti in mappa kWhPerMese) ---
-            Map<String, Double> kwhMese = kWhPerMese.getOrDefault(mese, Collections.emptyMap());
+            Map<String, Double> kwhMese = kwhNorm.getOrDefault(mese, Collections.emptyMap());
             Double f0Kwh   = getCI(kwhMese, "Materia energia f0", "Materia energia");
             Double f1Kwh   = getCI(kwhMese, "Materia energia f1");
             Double f2Kwh   = getCI(kwhMese, "Materia energia f2");
@@ -154,10 +223,9 @@ public class FileRepo implements PanacheRepositoryBase<PDFFile, Integer> {
             Double f1PerdK = getCI(kwhMese, "Perdite f1");
             Double f2PerdK = getCI(kwhMese, "Perdite f2");
             Double f3PerdK = getCI(kwhMese, "Perdite f3");
-            Double piccoKwh    = getCI(kwhMese, "Picco");
-            Double fuoriPiccoKwh = getCI(kwhMese, "Fuori Picco");
+            Double piccoKwh     = getCI(kwhMese, "Picco");
+            Double fuoriPiccoKwh= getCI(kwhMese, "Fuori Picco");
 
-            // --- Controllo idPod ---
             if (idPod == null || idPod.trim().isEmpty()) {
                 System.err.printf("ATTENZIONE: idPod nullo o vuoto, non salvo. nomeBolletta=%s, mese=%s, anno=%s%n",
                         nomeBolletta, mese, periodo.getAnno());
@@ -186,19 +254,17 @@ public class FileRepo implements PanacheRepositoryBase<PDFFile, Integer> {
             b.setTotRCapI(nz(totRCapI));
             b.setTotRIndI(nz(totRIndI));
 
-            // Spese macro - USA I VALORI FINALI (UNA SOLA VOLTA!)
-            b.setSpeseEne(nz(speseEne));
-            b.setSpeseTrasp(nz(trasportiFinale));  // ✅ Usa il totale specifico se disponibile
-            b.setOneri(nz(oneriFinale));           // ✅ Usa il totale specifico se disponibile
+            // Spese macro - USA I VALORI FINALI
+            b.setSpeseEne(nz(speseEneFinale));
+            b.setSpeseTrasp(nz(trasportiFinale));
+            b.setOneri(nz(oneriFinale));
             b.setImposte(nz(imposte));
             b.setDispacciamento(nz(dispacciamento));
 
-            // CALCOLO GENERATION (COME RICHIESTO)
             Double verificaDispacciamento = nz(dispacciamento);
-            Double generation = (double) Math.round(nz(speseEne) - verificaDispacciamento);
+            Double generation = nz(speseEneFinale) - verificaDispacciamento;
             b.setGeneration(generation);
-
-            System.out.println("⚙️ GENERATION CALCOLATA: " + generation + " (speseEne: " + nz(speseEne) + " - dispacciamento: " + verificaDispacciamento + ")");
+            System.out.println("⚙️ GENERATION CALCOLATA: " + generation + " (speseEneFinale: " + nz(speseEneFinale) + " - dispacciamento: " + verificaDispacciamento + ")");
 
             // Penalità capacitiva immessa
             b.setPenRCapI(nz(penRCapI));
@@ -218,6 +284,9 @@ public class FileRepo implements PanacheRepositoryBase<PDFFile, Integer> {
             b.setPiccoKwh(nz(piccoKwh));
             b.setFuoriPiccoKwh(nz(fuoriPiccoKwh));
 
+            // Energia Verde
+            b.setEnVeEuro(nz(enVeEuro));
+
             // kWh dettaglio
             b.setF0Kwh(nz(f0Kwh));
             b.setF1Kwh(nz(f1Kwh));
@@ -227,41 +296,51 @@ public class FileRepo implements PanacheRepositoryBase<PDFFile, Integer> {
             b.setF2PerdKwh(nz(f2PerdK));
             b.setF3PerdKwh(nz(f3PerdK));
 
-            // Totale attiva perdite (se vuoi salvarlo separatamente)
             b.setTotAttPerd(nz(safeSum(f1PerdK, f2PerdK, f3PerdK)));
+            b.setF1Pen33(nz(f1Pen33));
+            b.setF1Pen75(nz(f1Pen75));
+            b.setF2Pen33(nz(f2Pen33));
+            b.setF2Pen75(nz(f2Pen75));
 
-            // Quote trasporti SPECIFICHE (MODIFICATA)
+            // Quote trasporti specifiche
             b.setQFixTrasp(nz(getCI(speseMese, "TRASPORTI_FISSA", "quota fissa trasporti", "€/cliente/giorno quota fissa", "quota fissa")));
             b.setQPotTrasp(nz(getCI(speseMese, "TRASPORTI_POTENZA", "€/kW/giorno", "quota potenza trasporti", "quota potenza")));
             b.setQVarTrasp(nz(getCI(speseMese, "TRASPORTI_VARIABILE", "€/kWh", "quota variabile trasporti", "quota variabile del trasporto", "quota variabile")));
 
-            // MAPPATURA ASOS E ARIM (MODIFICATA)
-            // Mappatura ASOS
+            // MAPPATURA ASOS / ARIM
             b.setQEnOnASOS(nz(getCI(speseMese, "ASOS_VARIABILE", "quota energia oneri asos", "q energia oneri asos")));
             b.setQFixOnASOS(nz(getCI(speseMese, "ASOS_FISSA", "quota fissa oneri asos", "q fissa oneri asos")));
             b.setQPotOnASOS(nz(getCI(speseMese, "ASOS_POTENZA", "quota potenza oneri asos", "q potenza oneri asos")));
 
-            // Mappatura ARIM
             b.setQEnOnARIM(nz(getCI(speseMese, "ARIM_VARIABILE", "quota energia oneri arim", "q energia oneri arim")));
             b.setQFixOnARIM(nz(getCI(speseMese, "ARIM_FISSA", "quota fissa oneri arim", "q fissa oneri arim")));
             b.setQPotOnARIM(nz(getCI(speseMese, "ARIM_POTENZA", "quota potenza oneri arim", "q potenza oneri arim")));
 
-            System.out.println("💾 SALVANDO NEL DATABASE:");
+            System.out.println("💾 SALVANDO NEL DATABASE (tentativo INSERT):");
             System.out.println("   ID Pod: " + b.getIdPod());
+            System.out.println("   NomeBolletta: " + b.getNomeBolletta());
             System.out.println("   Mese: " + b.getMese());
             System.out.println("   Anno: " + b.getAnno());
-            System.out.println("   Spese Energia: " + b.getSpeseEne());
+            System.out.println("   Chiave univoca attesa (NomeBolletta-Mese): " + compositeKey);
+            System.out.println("   Spese Energia (finale): " + b.getSpeseEne());
             System.out.println("   Spese Trasporti: " + b.getSpeseTrasp());
             System.out.println("   Oneri: " + b.getOneri());
             System.out.println("   Generation: " + b.getGeneration());
 
-            // Persist
-            bollettaRepo.persist(b);
-            System.out.println("✅ RECORD SALVATO CON SUCCESSO");
+            try {
+                bollettaRepo.persist(b);
+                System.out.println("✅ RECORD SALVATO CON SUCCESSO");
+            } catch (Exception ex) {
+                System.out.println("⛔️ ERRORE IN INSERT su chiave " + compositeKey + ": " + ex.getMessage());
+                System.out.println("   Suggerimento: esiste già (NomeBolletta, Mese)? Vedi log sopra.");
+                throw ex; // rilancio per non alterare il comportamento originale
+            }
         }
 
         System.out.println("🏁 SALVATAGGIO DATABASE COMPLETATO");
     }
+
+
 
 
     // ------------------------------------------------------------
@@ -323,4 +402,45 @@ public class FileRepo implements PanacheRepositoryBase<PDFFile, Integer> {
         if (idFiles.isEmpty()) return new ArrayList<>();
         return find("idFile IN ?1", idFiles).list();
     }
+
+    // --- Helpers mesi (stessa logica ovunque) ---
+    private static final Map<String,String> MESE_CANON = new HashMap<>();
+    static {
+        MESE_CANON.put("gennaio","Gennaio"); MESE_CANON.put("febbraio","Febbraio");
+        MESE_CANON.put("marzo","Marzo");     MESE_CANON.put("aprile","Aprile");
+        MESE_CANON.put("maggio","Maggio");   MESE_CANON.put("giugno","Giugno");
+        MESE_CANON.put("luglio","Luglio");   MESE_CANON.put("agosto","Agosto");
+        MESE_CANON.put("settembre","Settembre"); MESE_CANON.put("ottobre","Ottobre");
+        MESE_CANON.put("novembre","Novembre");   MESE_CANON.put("dicembre","Dicembre");
+    }
+    private String canonMese(String raw) {
+        if (raw == null) return null;
+        String k = raw.trim().toLowerCase(java.util.Locale.ITALY);
+        return MESE_CANON.getOrDefault(k, raw);
+    }
+    private static <V> Map<String,V> canonizeMonthKeys(Map<String,V> in) {
+        Map<String,V> out = new LinkedHashMap<>();
+        if (in == null) return out;
+        in.forEach((k,v) -> out.put(
+                k==null ? null : k.trim().toLowerCase(java.util.Locale.ITALY), v));
+        return out;
+    }
+    private static <V> Map<String,Map<String,V>> canonizeMonthKeys2(Map<String,Map<String,V>> in) {
+        Map<String,Map<String,V>> out = new LinkedHashMap<>();
+        if (in == null) return out;
+        in.forEach((k,v) -> out.put(
+                k==null ? null : k.trim().toLowerCase(java.util.Locale.ITALY), v));
+        return out;
+    }
+    private static <V> Map<String,V> getMonthMapCI(Map<String,Map<String,V>> big, String mese) {
+        if (big == null) return java.util.Collections.emptyMap();
+        Map<String,V> val = big.get(mese);
+        if (val != null) return val;
+        // fallback case-insensitive
+        for (Map.Entry<String,Map<String,V>> e : big.entrySet()) {
+            if (e.getKey() != null && e.getKey().equalsIgnoreCase(mese)) return e.getValue();
+        }
+        return java.util.Collections.emptyMap();
+    }
+
 }

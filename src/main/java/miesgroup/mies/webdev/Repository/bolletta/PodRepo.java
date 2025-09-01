@@ -97,4 +97,22 @@ public class PodRepo implements PanacheRepositoryBase<Pod, String> {
         Pod pod = find("id", idPod).firstResult();
         return pod != null ? pod.getTipoTensione() : null;
     }
+
+    public void updatePeriodFattur(String idPod, int idUtente, String periodFattur) {
+        Pod pod = find("id = ?1 AND utente.id = ?2", idPod, idUtente).firstResult();
+        if (pod != null) {
+            // usa JPQL update come nelle altre funzioni del repo
+            update("periodFattur = ?1 WHERE id = ?2 AND utente.id = ?3", periodFattur, idPod, idUtente);
+        } else {
+            throw new PodNotFound("POD con ID " + idPod + " e utente " + idUtente + " non trovato.");
+        }
+    }
+    public String getPeriodicitaByPodId(String idPod) {
+        Pod pod = findById(idPod);
+        if (pod == null) {
+            throw new PodNotFound("POD con ID " + idPod + " non trovato.");
+        }
+        String p = pod.getPeriodFattur();
+        return (p == null || p.isBlank()) ? "Mensile" : p.trim();
+    }
 }
