@@ -24,15 +24,15 @@ public class BudgetExportResource {
         try (Workbook workbook = new XSSFWorkbook()) {
             Sheet sheet = workbook.createSheet("Budget");
 
-            // Header row
             Row header = sheet.createRow(0);
             header.createCell(0).setCellValue("Mese");
-            header.createCell(1).setCellValue("Prezzo Energia Base");
-            header.createCell(2).setCellValue("Consumi Base");
-            header.createCell(3).setCellValue("Oneri Base");
+            header.createCell(1).setCellValue("Prezzo Energia (€)");
+            header.createCell(2).setCellValue("Consumi (kWh)");
+            header.createCell(3).setCellValue("Oneri (€)");
             header.createCell(4).setCellValue("Prezzo Energia %");
             header.createCell(5).setCellValue("Consumi %");
             header.createCell(6).setCellValue("Oneri %");
+            header.createCell(7).setCellValue("Spesa Totale (€)");
 
             List<Budget> budgetList;
 
@@ -60,7 +60,7 @@ public class BudgetExportResource {
                 for (Integer mese : aggMap.keySet()) {
                     budgetList.add(aggMap.get(mese).compute());
                 }
-                budgetList.sort((a,b) -> Integer.compare(a.getMese(), b.getMese()));
+                budgetList.sort((a, b) -> Integer.compare(a.getMese(), b.getMese()));
 
             } else {
                 // Singolo POD
@@ -70,13 +70,37 @@ public class BudgetExportResource {
             int rowNum = 1;
             for (Budget b : budgetList) {
                 Row row = sheet.createRow(rowNum++);
+
+                double prezzoBase = b.getPrezzoEnergiaBase() != null ? b.getPrezzoEnergiaBase() : 0;
+                double consumiBase = b.getConsumiBase() != null ? b.getConsumiBase() : 0;
+                double oneriBase = b.getOneriBase() != null ? b.getOneriBase() : 0;
+                double percPrezzo = b.getPrezzoEnergiaPerc() != null ? b.getPrezzoEnergiaPerc() : 0;
+                double percConsumi = b.getConsumiPerc() != null ? b.getConsumiPerc() : 0;
+                double percOneri = b.getOneriPerc() != null ? b.getOneriPerc() : 0;
+
+                // €/kWh applicando % prezzo
+                double prezzoUnitario = consumiBase > 0
+                        ? (prezzoBase / consumiBase) * (1 + percPrezzo / 100)
+                        : 0;
+
+                // Consumi attesi
+                double consumiAttesi = consumiBase * (1 + percConsumi / 100);
+
+                // Oneri attesi
+                double oneriAttesi = oneriBase * (1 + percOneri / 100);
+
+                // Spesa totale
+                double spesaTotale = prezzoUnitario * consumiAttesi + oneriAttesi;
+
+                // Scrivi colonne aggiornate
                 row.createCell(0).setCellValue(b.getMese());
-                row.createCell(1).setCellValue(b.getPrezzoEnergiaBase());
-                row.createCell(2).setCellValue(b.getConsumiBase());
-                row.createCell(3).setCellValue(b.getOneriBase());
-                row.createCell(4).setCellValue(b.getPrezzoEnergiaPerc());
-                row.createCell(5).setCellValue(b.getConsumiPerc());
-                row.createCell(6).setCellValue(b.getOneriPerc());
+                row.createCell(1).setCellValue(prezzoUnitario * consumiAttesi); // Totale energia
+                row.createCell(2).setCellValue(consumiAttesi);
+                row.createCell(3).setCellValue(oneriAttesi);
+                row.createCell(4).setCellValue(percPrezzo);
+                row.createCell(5).setCellValue(percConsumi);
+                row.createCell(6).setCellValue(percOneri);
+                row.createCell(7).setCellValue(spesaTotale);
             }
 
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
