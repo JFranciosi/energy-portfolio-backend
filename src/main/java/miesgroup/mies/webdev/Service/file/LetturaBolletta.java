@@ -15,6 +15,7 @@ import miesgroup.mies.webdev.Repository.file.FileRepo;
 import miesgroup.mies.webdev.Service.DateUtils;
 import miesgroup.mies.webdev.Service.LogCustom;
 import miesgroup.mies.webdev.Service.budget.BudgetAllService;
+import miesgroup.mies.webdev.Service.budget.BudgetManagerService;
 import miesgroup.mies.webdev.Service.budget.BudgetService;
 import org.w3c.dom.Document;
 import org.xml.sax.SAXException;
@@ -35,6 +36,7 @@ public class LetturaBolletta {
     @Inject BudgetService budgetService;
     @Inject BudgetAllService budgetAllService;
     @Inject Lettura lettura;
+    @Inject BudgetManagerService budgetManager;
 
     @Transactional
     public String extractValuesFromXmlA2A(byte[] xmlData, String idPod) {
@@ -96,49 +98,9 @@ public class LetturaBolletta {
                 }
                 Cliente cliente = pod.getUtente();
 
-                // --- Inserisci/aggiorna BUDGET
-                Budget budget = new Budget();
-                budget.setPodId(bolletta.getIdPod());
-                budget.setAnno(Integer.parseInt(bolletta.getAnno()));
-                budget.setMese(Integer.parseInt(DateUtils.getMonthNumber(mese))); // es. giugno -> 6
-                budget.setPrezzoEnergiaBase(bolletta.getSpeseEne() != null ? bolletta.getSpeseEne() : 0.0);
-                budget.setConsumiBase(bolletta.getTotAtt()      != null ? bolletta.getTotAtt()     : 0.0);
-                budget.setOneriBase(bolletta.getOneri()            != null ? bolletta.getOneri()         : 0.0);
-                budget.setPrezzoEnergiaPerc(0.0);
-                budget.setConsumiPerc(0.0);
-                budget.setOneriPerc(0.0);
-                budget.setCliente(cliente);
-
-                LogCustom.logTitle("BUDGET - Insert/Update");
-                LogCustom.logKV("Cliente", cliente.getId());
-                LogCustom.logKV("POD", budget.getPodId());
-                LogCustom.logKV("Anno/Mese", budget.getAnno() + "/" + budget.getMese());
-                LogCustom.logKV("PrezzoEnergiaBase", budget.getPrezzoEnergiaBase());
-                LogCustom.logKV("ConsumiBase", budget.getConsumiBase());
-                LogCustom.logKV("OneriBase", budget.getOneriBase());
-                budgetService.creaBudget(budget);
-
-                // --- Inserisci/aggiorna BUDGET_ALL
-                BudgetAll budgetAll = new BudgetAll();
-                budgetAll.setIdPod("ALL");
-                budgetAll.setCliente(cliente);
-                budgetAll.setAnno(Integer.parseInt(bolletta.getAnno()));
-                budgetAll.setMese(Integer.parseInt(DateUtils.getMonthNumber(mese))); // es. 6 = giugno
-
-                budgetAll.setPrezzoEnergiaBase(bolletta.getSpeseEne() != null ? bolletta.getSpeseEne() : 0.0);
-                budgetAll.setConsumiBase(bolletta.getTotAtt() != null ? bolletta.getTotAtt() : 0.0);
-                budgetAll.setOneriBase(bolletta.getOneri() != null ? bolletta.getOneri() : 0.0);
-                budgetAll.setPrezzoEnergiaPerc(0.0);
-                budgetAll.setConsumiPerc(0.0);
-                budgetAll.setOneriPerc(0.0);
-
-                LogCustom.logTitle("BUDGET_ALL - Upsert");
-                LogCustom.logKV("Cliente", cliente.getId());
-                LogCustom.logKV("Anno/Mese", budgetAll.getAnno() + "/" + budgetAll.getMese());
-                LogCustom.logKV("PrezzoEnergiaBase", budgetAll.getPrezzoEnergiaBase());
-                LogCustom.logKV("ConsumiBase", budgetAll.getConsumiBase());
-                LogCustom.logKV("OneriBase", budgetAll.getOneriBase());
-                budgetAllService.upsertAggregato(budgetAll);
+                // Chiamata ai due metodi estratti
+                budgetManager.gestisciBudget(bolletta, cliente, mese);
+                budgetManager.gestisciBudgetAll(bolletta, cliente, mese);
 
             } else {
                 LogCustom.logWarn("Bolletta non trovata in DB dopo il salvataggio per mese/anno.");

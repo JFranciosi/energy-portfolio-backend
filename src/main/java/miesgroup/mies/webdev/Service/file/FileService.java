@@ -464,4 +464,163 @@ public class FileService {
         logKV("dto.size", out.size());
         return out;
     }
+
+    // ─────────────────────────────────────────────────────────────
+// FileService - Utility condivise per bollette/ricalcoli
+// ─────────────────────────────────────────────────────────────
+    public static String fmt(Date d) {
+        if (d == null) return "null";
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd/MM/yyyy");
+        return sdf.format(d);
+    }
+
+    public static String ms(long t0, long t1) {
+        return String.valueOf(Math.round((t1 - t0) / 1_000_000.0));
+    }
+
+    // === Canonizzazione nomi mesi ===
+    private static final Map<String, String> MESE_CANON = new HashMap<>();
+    static {
+        MESE_CANON.put("gennaio","Gennaio"); MESE_CANON.put("febbraio","Febbraio");
+        MESE_CANON.put("marzo","Marzo");     MESE_CANON.put("aprile","Aprile");
+        MESE_CANON.put("maggio","Maggio");   MESE_CANON.put("giugno","Giugno");
+        MESE_CANON.put("luglio","Luglio");   MESE_CANON.put("agosto","Agosto");
+        MESE_CANON.put("settembre","Settembre"); MESE_CANON.put("ottobre","Ottobre");
+        MESE_CANON.put("novembre","Novembre");   MESE_CANON.put("dicembre","Dicembre");
+    }
+    public static String canonizzaMese(String raw) {
+        if (raw == null) return null;
+        String k = raw.trim().toLowerCase(Locale.ITALY);
+        return MESE_CANON.getOrDefault(k, raw);
+    }
+
+    public static String monthNameOf(Date d) {
+        String[] mesi = {"Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"};
+        Calendar c = Calendar.getInstance(); c.setTime(d);
+        return mesi[c.get(Calendar.MONTH)];
+    }
+    public static String monthNameOf(YearMonth ym) {
+        String nome = ym.getMonth().getDisplayName(java.time.format.TextStyle.FULL, Locale.ITALIAN);
+        return canonizzaMese(nome);
+    }
+    public static YearMonth ymOf(Date d) {
+        Calendar c = Calendar.getInstance(); c.setTime(d);
+        return YearMonth.of(c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1);
+    }
+    public static int yearOf(Date d) {
+        Calendar c = Calendar.getInstance(); c.setTime(d);
+        return c.get(Calendar.YEAR);
+    }
+    public static String capitalizeFirstThree(String mese) {
+        if (mese == null || mese.isEmpty()) return mese;
+        return mese.substring(0,1).toUpperCase() + mese.substring(1, Math.min(3, mese.length())).toLowerCase();
+    }
+
+    public static Periodo toPeriodoMeseFromDate(Date anyDayInMonth) {
+        Calendar c = Calendar.getInstance();
+        c.setTime(anyDayInMonth);
+        c.set(Calendar.DAY_OF_MONTH, 1);
+        c.set(Calendar.HOUR_OF_DAY,0); c.set(Calendar.MINUTE,0); c.set(Calendar.SECOND,0); c.set(Calendar.MILLISECOND,0);
+        Date inizio = c.getTime();
+        c.add(Calendar.MONTH, 1);
+        c.add(Calendar.DAY_OF_MONTH, -1);
+        c.set(Calendar.HOUR_OF_DAY,23); c.set(Calendar.MINUTE,59); c.set(Calendar.SECOND,59); c.set(Calendar.MILLISECOND,999);
+        Date fine = c.getTime();
+        String anno = String.valueOf(yearOf(anyDayInMonth));
+        return new Periodo(inizio, fine, anno);
+    }
+
+    // stampa Map<String, Map<String, Double>>
+    public static void logNestedDoubleMap(Map<String, Map<String, Double>> m) {
+        if (m == null || m.isEmpty()) { System.out.println("   • <vuoto>"); return; }
+        m.forEach((k,v) -> System.out.println("   • " + k + " -> " + v));
+    }
+    // stampa Map<String, Map<String, Map<String, Integer>>>
+    public static void logNestedIntMap(Map<String, Map<String, Map<String, Integer>>> m) {
+        if (m == null || m.isEmpty()) { System.out.println("   • <vuoto>"); return; }
+        m.forEach((mese,cat) -> System.out.println("   • " + mese + " -> " + cat));
+    }
+
+    public static boolean containsKeyLike(Map<String, Double> map, String... tokens) {
+        if (map == null || map.isEmpty()) return false;
+        for (String key : map.keySet()) {
+            String low = key.toLowerCase(Locale.ITALIAN);
+            boolean all = true;
+            for (String t : tokens) {
+                if (!low.contains(t.toLowerCase(Locale.ITALIAN))) { all = false; break; }
+            }
+            if (all) return true;
+        }
+        return false;
+    }
+
+    // Costruisce la mappa letture per saveDataToDatabase a partire dal blocco "Contatore"
+    public static Map<String, Map<String, Map<String, Integer>>> buildLettureStubFromMisure(
+            String meseCorrente,
+            List<LetturaRicalcoloBolletta.VoceMisura> misureMese
+    ) {
+        Map<String, Map<String, Map<String, Integer>>> out = new LinkedHashMap<>();
+        Map<String, Map<String, Integer>> catFasce = new LinkedHashMap<>();
+        for (LetturaRicalcoloBolletta.VoceMisura vm : misureMese) {
+            int lastSpace = vm.item.lastIndexOf(' ');
+            if (lastSpace <= 0) continue;
+            String categoria = vm.item.substring(0, lastSpace).trim(); // es. "Energia Attiva"
+            String fascia    = vm.item.substring(lastSpace + 1).trim(); // es. "F1"
+            int valore       = (int)Math.round(vm.consumo);
+            catFasce.computeIfAbsent(categoria, k -> new LinkedHashMap<>()).merge(fascia, valore, Integer::sum);
+        }
+        out.put(meseCorrente, catFasce);
+        return out;
+    }
+
+    // Normalizza mesi ("ottobre" -> "Ottobre") e fonde duplicati sommando i valori
+    public static Map<String, Map<String, Double>> normalizeAndMergeNested(Map<String, Map<String, Double>> in) {
+        Map<String, Map<String, Double>> out = new LinkedHashMap<>();
+        if (in == null) return out;
+        in.forEach((mese, inner) -> {
+            String canon = canonizzaMese(mese);
+            Map<String, Double> dest = out.computeIfAbsent(canon, k -> new LinkedHashMap<>());
+            if (inner != null) inner.forEach((k,v) -> dest.merge(k, v, Double::sum));
+        });
+        return out;
+    }
+
+    // Merge 2 mappe annidate (somma valori su chiavi duplicate)
+    public static Map<String, Map<String, Double>> mergeNestedDoubleMaps(
+            Map<String, Map<String, Double>> a,
+            Map<String, Map<String, Double>> b
+    ) {
+        Map<String, Map<String, Double>> out = new LinkedHashMap<>();
+        if (a != null) a.forEach((mese,inner) -> out.put(mese, new LinkedHashMap<>(inner)));
+        if (b != null) b.forEach((mese,inner) -> {
+            Map<String, Double> dest = out.computeIfAbsent(mese, k -> new LinkedHashMap<>());
+            inner.forEach((k,v) -> dest.merge(k, v, Double::sum));
+        });
+        return out;
+    }
+
+    // (opzionale) Deriva kWh da misure Attiva F1/F2/F3 se vuoi riutilizzarlo
+    public static Map<String, Map<String, Double>> kwhFromMisureAttiva(
+            String meseCorrente,
+            List<LetturaRicalcoloBolletta.VoceMisura> misureMese
+    ) {
+        double f1 = 0, f2 = 0, f3 = 0;
+        for (LetturaRicalcoloBolletta.VoceMisura vm : misureMese) {
+            if (vm.item.startsWith("Energia Attiva ")) {
+                if (vm.item.endsWith("F1")) f1 += vm.consumo;
+                else if (vm.item.endsWith("F2")) f2 += vm.consumo;
+                else if (vm.item.endsWith("F3")) f3 += vm.consumo;
+            }
+        }
+        Map<String, Map<String, Double>> out = new LinkedHashMap<>();
+        Map<String, Double> cat = new LinkedHashMap<>();
+        if (f1 > 0) cat.put("Materia energia f1", f1);
+        if (f2 > 0) cat.put("Materia energia f2", f2);
+        if (f3 > 0) cat.put("Materia energia f3", f3);
+        double f0 = f1 + f2 + f3;
+        if (f0 > 0) cat.put("Materia energia f0", f0);
+        out.put(meseCorrente, cat);
+        return out;
+    }
+
 }

@@ -56,18 +56,18 @@ public class LetturaRicalcoloBolletta {
     public void processaBollettaConRicalcolo(
             Document document,
             String idPod,
-            Periodo periodoTotale,          // es.: 01/01/2024 -> 31/10/2024
+            Periodo periodoTotale,              // es.: 01/01/2024 -> 31/10/2024
             @Nullable Periodo periodoRicalcolo, // es.: 01/01/2024 -> 30/09/2024 (può essere null)
-            String periodicitaFatturazione  // es.: "Mensile" (già estratta tab POD)
+            String periodicitaFatturazione      // es.: "Mensile" (già estratta tab POD)
     ) {
         long t0 = System.nanoTime();
         System.out.println("\n" + "=".repeat(100));
         System.out.println("▶ AVVIO processaBollettaConRicalcolo");
         System.out.println("- idPod: " + idPod);
         System.out.println("- periodicitaFatturazione: " + periodicitaFatturazione);
-        System.out.println("- periodoTotale: " + fmt(periodoTotale.getInizio()) + " → " + fmt(periodoTotale.getFine()));
+        System.out.println("- periodoTotale: " + FileService.fmt(periodoTotale.getInizio()) + " → " + FileService.fmt(periodoTotale.getFine()));
         if (periodoRicalcolo != null) {
-            System.out.println("- periodoRicalcolo: " + fmt(periodoRicalcolo.getInizio()) + " → " + fmt(periodoRicalcolo.getFine()));
+            System.out.println("- periodoRicalcolo: " + FileService.fmt(periodoRicalcolo.getInizio()) + " → " + FileService.fmt(periodoRicalcolo.getFine()));
         } else {
             System.out.println("- periodoRicalcolo: <null> (nessun ricalcolo mensile atteso)");
         }
@@ -81,8 +81,8 @@ public class LetturaRicalcoloBolletta {
         }
 
         // 1) Mese corrente (dalla fine del range totale)
-        String meseCorrente = canonizzaMese(monthNameOf(periodoTotale.getFine()));
-        int annoCorrente    = yearOf(periodoTotale.getFine());
+        String meseCorrente = FileService.canonizzaMese(FileService.monthNameOf(periodoTotale.getFine()));
+        int annoCorrente    = FileService.yearOf(periodoTotale.getFine());
         String nomeBolletta = lettura.extractBollettaNome(document);
         System.out.println("- meseCorrente: " + meseCorrente + " " + annoCorrente);
         System.out.println("- nomeBolletta: " + nomeBolletta);
@@ -95,13 +95,13 @@ public class LetturaRicalcoloBolletta {
             System.out.println("! WARN: nessuna voce trovata nel blocco Contatore. Verificare regex/tabella PDF.");
         } else {
             for (VoceMisura vm : misure) {
-                System.out.println("   • " + fmt(vm.dataFine) + " | item=" + vm.item + " | consumo=" + vm.consumo);
+                System.out.println("   • " + FileService.fmt(vm.dataFine) + " | item=" + vm.item + " | consumo=" + vm.consumo);
             }
         }
 
         // raggruppa per mese (canonizzato) -> lista voci
         Map<String, List<VoceMisura>> misurePerMese = misure.stream()
-                .collect(Collectors.groupingBy(vm -> canonizzaMese(monthNameOf(vm.dataFine)),
+                .collect(Collectors.groupingBy(vm -> FileService.canonizzaMese(FileService.monthNameOf(vm.dataFine)),
                         LinkedHashMap::new, Collectors.toList()));
 
         // riepilogo grouping
@@ -127,7 +127,7 @@ public class LetturaRicalcoloBolletta {
                     if (v.item.equals("Energia Reattiva F2")) r2 += v.consumo;
                     if (v.item.equals("Energia Reattiva F3")) r3 += v.consumo;
 
-                    // Reattiva CAPACITIVA (prelevata) - se presente nelle tue voci
+                    // Reattiva CAPACITIVA (prelevata)
                     if (v.item.equals("Energia Reattiva Capacitiva F1")) rcap1 += v.consumo;
                     if (v.item.equals("Energia Reattiva Capacitiva F2")) rcap2 += v.consumo;
                     if (v.item.equals("Energia Reattiva Capacitiva F3")) rcap3 += v.consumo;
@@ -155,7 +155,7 @@ public class LetturaRicalcoloBolletta {
         }
 
         long tMis1 = System.nanoTime();
-        System.out.println("[CONTATORE] Tempo parsing + grouping: " + ms(tMis0, tMis1) + " ms");
+        System.out.println("[CONTATORE] Tempo parsing + grouping: " + FileService.ms(tMis0, tMis1) + " ms");
 
         // Aggiorna mesi storici; il mese corrente NON lo persistiamo qui (ci pensa saveDataToDatabase)
         System.out.println("\n[CONTATORE] Aggiornamento mesi storici (escludo mese corrente: " + meseCorrente + " " + annoCorrente + ")");
@@ -166,14 +166,11 @@ public class LetturaRicalcoloBolletta {
             boolean isMeseCorrente = meseCorrente.equalsIgnoreCase(mese);
 
             // per robustezza, calcolo l'anno dal gruppo (se incroci di anno: uso l'anno della prima voce)
-            int annoGruppo = e.getValue().isEmpty() ? annoCorrente : yearOf(e.getValue().get(0).dataFine);
+            int annoGruppo = e.getValue().isEmpty() ? annoCorrente : FileService.yearOf(e.getValue().get(0).dataFine);
 
-            BollettaPod b = bollettaPodRepo.find("idPod = ?1 and mese = ?2 and anno = ?3", idPod, mese, String.valueOf(annoGruppo))
-                    .firstResult();
+            BollettaPod b = bollettaPodRepo.find("idPod = ?1 and mese = ?2 and anno = ?3", idPod, mese, String.valueOf(annoGruppo)).firstResult();
             boolean isNew = false;
             if (b == null) { b = new BollettaPod(); isNew = true; }
-
-            // intestazione base
 
             // log sintetico prima di applicare
             System.out.println("   → Mese " + mese + " " + annoGruppo + (isMeseCorrente ? " [MESE CORRENTE]" : " [storico]"));
@@ -192,7 +189,6 @@ public class LetturaRicalcoloBolletta {
             if (isMeseCorrente) {
                 System.out.println("     🔒 Skip persist (mese corrente sarà gestito da saveDataToDatabase)");
             } else {
-                // mesi storici: crea se manca, altrimenti la sessione gestisce il dirty-check
                 if (isNew) {
                     bollettaPodRepo.persist(b);
                     persistCreati++;
@@ -214,50 +210,37 @@ public class LetturaRicalcoloBolletta {
         }
 
         Map<String, Map<String, Map<String, Integer>>> lettureMeseStub =
-                buildLettureStubFromMisure(meseCorrente, misureMeseCorrente);
+                FileService.buildLettureStubFromMisure(meseCorrente, misureMeseCorrente);
         System.out.println("[QUADRO] LettureMeseStub:");
-        logNestedIntMap(lettureMeseStub);
+        FileService.logNestedIntMap(lettureMeseStub);
 
         // b) Spese del mese corrente dal quadro "Spesa per ..."
         Map<String, Map<String, Double>> speseCorrenteRaw = lettura.extractSpesePerMese(document, lettureMeseStub);
         System.out.println("[QUADRO] SpeseCorrenteRaw (keys=" + speseCorrenteRaw.keySet() + ")");
-        logNestedDoubleMap(speseCorrenteRaw);
+        FileService.logNestedDoubleMap(speseCorrenteRaw);
 
         // Normalizzo i mesi ed accorpo eventuali duplicati "Ottobre"/"ottobre"
-        Map<String, Map<String, Double>> speseCorrente = normalizeAndMergeNested(speseCorrenteRaw);
+        Map<String, Map<String, Double>> speseCorrente = FileService.normalizeAndMergeNested(speseCorrenteRaw);
         System.out.println("[QUADRO] SpeseCorrente (normalizzate, keys=" + speseCorrente.keySet() + ")");
-        logNestedDoubleMap(speseCorrente);
+        FileService.logNestedDoubleMap(speseCorrente);
 
-        // c) kWh dal quadro dedicato (se il PDF li espone: Perdite, Picco, ecc.)777
+        // c) kWh dal quadro dedicato (se il PDF li espone: Perdite, Picco, ecc.)
         Map<String, Map<String, Double>> kwhEstratti = lettura.extractKwhPerMese(document);
         System.out.println("[QUADRO] kWhEstratti (da quadro dedicato, keys=" + (kwhEstratti != null ? kwhEstratti.keySet() : "null") + ")");
-        logNestedDoubleMap(kwhEstratti);
-/*
-        // d) kWh derivati dalle misure "Energia Attiva" (F1/F2/F3) del mese corrente
-        Map<String, Map<String, Double>> kwhDaMisureAttiva = kwhFromMisureAttiva(meseCorrente, misureMeseCorrente);
-        System.out.println("[QUADRO] kWhDaMisureAttiva (F1/F2/F3 derivati):");
-        logNestedDoubleMap(kwhDaMisureAttiva);
+        FileService.logNestedDoubleMap(kwhEstratti);
 
-        // e) Merge: tengo **tutto** (quadro + misure). In caso di chiavi doppie sommo.
-        Map<String, Map<String, Double>> kWhPerMese = mergeNestedDoubleMaps(kwhEstratti, kwhDaMisureAttiva);
-        kWhPerMese = normalizeAndMergeNested(kWhPerMese);
-        System.out.println("[QUADRO] kWhPerMese (merge quadro+misure):");
-        logNestedDoubleMap(kWhPerMese);
-
-
- */
         // ✅ Verifiche chiavi critiche sul mese corrente
         System.out.println("[CHECK] Chiavi critiche nel mese corrente (" + meseCorrente + "):");
         Map<String, Double> cat = (kwhEstratti != null) ? kwhEstratti.get(meseCorrente) : null;
         if (cat == null) {
             System.out.println("! WARN: kWhPerMese non contiene la chiave del mese corrente: " + meseCorrente);
         } else {
-            boolean hasFuoriPicco = containsKeyLike(cat, "fuori", "picco");
-            boolean hasPicco      = containsKeyLike(cat, "picco") || containsKeyLike(cat, "ore picco");
-            boolean hasPerdF1     = containsKeyLike(cat, "perdite", "f1");
-            boolean hasPerdF2     = containsKeyLike(cat, "perdite", "f2");
-            boolean hasPerdF3     = containsKeyLike(cat, "perdite", "f3");
-            boolean hasEnVerde    = containsKeyLike(cat, "energia", "verde") || containsKeyLike(cat, "vendita energia verde");
+            boolean hasFuoriPicco = FileService.containsKeyLike(cat, "fuori", "picco");
+            boolean hasPicco      = FileService.containsKeyLike(cat, "picco") || FileService.containsKeyLike(cat, "ore picco");
+            boolean hasPerdF1     = FileService.containsKeyLike(cat, "perdite", "f1");
+            boolean hasPerdF2     = FileService.containsKeyLike(cat, "perdite", "f2");
+            boolean hasPerdF3     = FileService.containsKeyLike(cat, "perdite", "f3");
+            boolean hasEnVerde    = FileService.containsKeyLike(cat, "energia", "verde") || FileService.containsKeyLike(cat, "vendita energia verde");
 
             System.out.println("   • Fuori Picco kWh presente? " + hasFuoriPicco);
             System.out.println("   • Picco kWh presente?       " + hasPicco);
@@ -273,27 +256,27 @@ public class LetturaRicalcoloBolletta {
         System.out.println("\n" + "-".repeat(100));
         System.out.println("📦 PAYLOAD verso saveDataToDatabase (MESE CORRENTE: " + meseCorrente + ")");
         System.out.println("- LettureMeseStub:");
-        logNestedIntMap(lettureMeseStub);
+        FileService.logNestedIntMap(lettureMeseStub);
         System.out.println("- SpeseCorrente:");
-        logNestedDoubleMap(speseCorrente);
+        FileService.logNestedDoubleMap(speseCorrente);
         System.out.println("- kWhPerMese:");
-        logNestedDoubleMap(kwhEstratti);
+        FileService.logNestedDoubleMap(kwhEstratti);
         System.out.println("-".repeat(100) + "\n");
 
         // Salvataggio (riempie F1/F2/F3, TOT_Att/TOT_R..., f*_kwh, perdite_kwh, ecc.)
         long tSave0 = System.nanoTime();
 
-        //fileRepo.saveDataToDatabase(lettureMeseStub, speseCorrente, idPod, nomeBolletta, periodoTotale, kwhEstratti);
-        Periodo periodoMeseCorrente = toPeriodoMeseFromDate(periodoTotale.getFine()); // costruisce 1→fine mese
+        // Periodo mese corrente (1→fine mese)
+        Periodo periodoMeseCorrente = FileService.toPeriodoMeseFromDate(periodoTotale.getFine());
         fileRepo.saveDataToDatabase(lettureMeseStub, speseCorrente, idPod, nomeBolletta, periodoMeseCorrente, kwhEstratti);
 
         long tSave1 = System.nanoTime();
-        System.out.println("[SAVE] saveDataToDatabase eseguito in " + ms(tSave0, tSave1) + " ms");
+        System.out.println("[SAVE] saveDataToDatabase eseguito in " + FileService.ms(tSave0, tSave1) + " ms");
 
         // 4) ===== RICALCOLI MENSILI "RICALCOLO PER RETTIFICA ..." =====
         if (periodoRicalcolo != null) {
             System.out.println("\n[RICALCOLI] Avvio lettura ricalcolo per bolletta: " + nomeBolletta + " - POD: " + idPod);
-            System.out.println("[RICALCOLI] Periodo ricalcolo totale: " + fmt(periodoRicalcolo.getInizio()) + " → " + fmt(periodoRicalcolo.getFine()));
+            System.out.println("[RICALCOLI] Periodo ricalcolo totale: " + FileService.fmt(periodoRicalcolo.getInizio()) + " → " + FileService.fmt(periodoRicalcolo.getFine()));
             long tRic0 = System.nanoTime();
 
             // (a) Estrai dalla bolletta i dati di ricalcolo -> lista (item, data, prezzo)
@@ -303,13 +286,13 @@ public class LetturaRicalcoloBolletta {
                 System.out.println("! WARN: nessuna voce ricalcolo trovata. Controllare intestazioni 'RICALCOLO PER RETTIFICA ...'");
             } else {
                 for (VocePrezzo vp : prezziRicalcolo) {
-                    System.out.println("   • " + fmt(vp.dataFine) + " | item=" + vp.item + " | prezzo(€)=" + vp.prezzo);
+                    System.out.println("   • " + FileService.fmt(vp.dataFine) + " | item=" + vp.item + " | prezzo(€)=" + vp.prezzo);
                 }
             }
 
             // (b) Raggruppo per YearMonth (robusto anche se attraversa anni)
             Map<YearMonth, List<VocePrezzo>> prezziRicPerYM = prezziRicalcolo.stream()
-                    .collect(Collectors.groupingBy(v -> ymOf(v.dataFine), LinkedHashMap::new, Collectors.toList()));
+                    .collect(Collectors.groupingBy(v -> FileService.ymOf(v.dataFine), LinkedHashMap::new, Collectors.toList()));
 
             System.out.println("[RICALCOLI] Raggruppamento per YearMonth:");
             for (Map.Entry<YearMonth, List<VocePrezzo>> en : prezziRicPerYM.entrySet()) {
@@ -322,14 +305,13 @@ public class LetturaRicalcoloBolletta {
             int mesiModificati = 0, mesiInvariati = 0, mesiCreati = 0;
             for (Map.Entry<YearMonth, List<VocePrezzo>> en : prezziRicPerYM.entrySet()) {
                 YearMonth ym = en.getKey();
-                String meseNome = monthNameOf(ym);  // "Gennaio", ...
+                String meseNome = FileService.monthNameOf(ym);  // "Gennaio", ...
                 String annoStr  = String.valueOf(ym.getYear());
 
                 System.out.println("[RICALCOLI] Elaboro: " + meseNome + " " + annoStr
                         + " (voci=" + en.getValue().size() + ")");
 
-                BollettaPod row = bollettaPodRepo.find("idPod = ?1 and mese = ?2 and anno = ?3", idPod, meseNome, annoStr)
-                        .firstResult();
+                BollettaPod row = bollettaPodRepo.find("idPod = ?1 and mese = ?2 and anno = ?3", idPod, meseNome, annoStr).firstResult();
 
                 if (row == null) {
                     System.out.println("   • Nessuna riga trovata in DB → creazione nuova");
@@ -338,7 +320,7 @@ public class LetturaRicalcoloBolletta {
                     row.setNomeBolletta(nomeBolletta);
                     row.setMese(meseNome);
                     row.setAnno(annoStr);
-                    row.setMeseAnno(capitalizeFirstThree(meseNome) + " " + annoStr);
+                    row.setMeseAnno(FileService.capitalizeFirstThree(meseNome) + " " + annoStr);
                     row.setPeriodoInizio(new java.sql.Date(periodoTotale.getInizio().getTime()));
                     row.setPeriodoFine(new java.sql.Date(periodoTotale.getFine().getTime()));
                     bollettaPodRepo.persist(row);
@@ -360,82 +342,15 @@ public class LetturaRicalcoloBolletta {
             }
             long tRic1 = System.nanoTime();
             System.out.println("[RICALCOLI] Summary → mesiCreati=" + mesiCreati + ", mesiModificati=" + mesiModificati + ", mesiInvariati=" + mesiInvariati
-                    + " | tempo: " + ms(tRic0, tRic1) + " ms");
+                    + " | tempo: " + FileService.ms(tRic0, tRic1) + " ms");
         } else {
             System.out.println("[RICALCOLI] Skippati (periodoRicalcolo == null)");
         }
 
         long t1 = System.nanoTime();
-        System.out.println("⏱ Tempo totale processaBollettaConRicalcolo: " + ms(t0, t1) + " ms");
+        System.out.println("⏱ Tempo totale processaBollettaConRicalcolo: " + FileService.ms(t0, t1) + " ms");
         System.out.println("■ FINE processaBollettaConRicalcolo");
         System.out.println("=".repeat(100) + "\n");
-    }
-
-// --- LOG/DEBUG UTILS ---
-
-    private String fmt(Date d) {
-        if (d == null) return "null";
-        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd/MM/yyyy");
-        return sdf.format(d);
-    }
-
-    private String ms(long t0, long t1) {
-        return String.valueOf(Math.round((t1 - t0) / 1_000_000.0));
-    }
-
-    // stampa Map<String, Map<String, Double>>
-    private void logNestedDoubleMap(Map<String, Map<String, Double>> m) {
-        if (m == null) {
-            System.out.println("   <null>");
-            return;
-        }
-        if (m.isEmpty()) {
-            System.out.println("   <vuoto>");
-            return;
-        }
-        for (Map.Entry<String, Map<String, Double>> e : m.entrySet()) {
-            System.out.println("   [" + e.getKey() + "]");
-            Map<String, Double> inner = e.getValue();
-            if (inner == null || inner.isEmpty()) {
-                System.out.println("      <vuoto>");
-                continue;
-            }
-            for (Map.Entry<String, Double> in : inner.entrySet()) {
-                System.out.println("      - " + in.getKey() + " = " + in.getValue());
-            }
-            double sum = inner.values().stream().mapToDouble(this::nz).sum();
-            System.out.println("      Σ = " + round2(sum));
-        }
-    }
-
-    // stampa Map<String, Map<String, Map<String, Integer>>>
-    private void logNestedIntMap(Map<String, Map<String, Map<String, Integer>>> m) {
-        if (m == null) {
-            System.out.println("   <null>");
-            return;
-        }
-        if (m.isEmpty()) {
-            System.out.println("   <vuoto>");
-            return;
-        }
-        for (Map.Entry<String, Map<String, Map<String, Integer>>> e : m.entrySet()) {
-            System.out.println("   [" + e.getKey() + "]");
-            Map<String, Map<String, Integer>> inner = e.getValue();
-            if (inner == null || inner.isEmpty()) {
-                System.out.println("      <vuoto>");
-                continue;
-            }
-            for (Map.Entry<String, Map<String, Integer>> cat : inner.entrySet()) {
-                System.out.println("      • " + cat.getKey());
-                Map<String, Integer> fasce = cat.getValue();
-                int sum = 0;
-                for (Map.Entry<String, Integer> f : fasce.entrySet()) {
-                    System.out.println("         - " + f.getKey() + " = " + f.getValue());
-                    sum += (f.getValue() != null ? f.getValue() : 0);
-                }
-                System.out.println("         Σ = " + sum);
-            }
-        }
     }
 
     // cerca chiavi "simili" (case-insensitive, tutti i token devono comparire nel nome chiave)
