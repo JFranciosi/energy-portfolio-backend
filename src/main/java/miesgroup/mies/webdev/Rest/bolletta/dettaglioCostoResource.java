@@ -173,14 +173,13 @@ public class dettaglioCostoResource {
                     .entity("Lista di ID vuota o nulla")
                     .build();
         }
-
         // Verifica se l'utente ha i permessi per eliminare
         Cliente c = sessionService.trovaUtenteCategoryBySessione(idSessione);
         if (!"Admin".equals(c.getTipologia())) {
             return Response.status(Response.Status.UNAUTHORIZED).build();
         }
 
-        long deletedCount = dettaglioCostoService.deleteIds(ids);
+        Long deletedCount = dettaglioCostoService.deleteIds(ids);
         return Response.ok(Map.of("deleted", deletedCount)).build();
     }
 

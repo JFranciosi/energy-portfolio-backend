@@ -15,12 +15,12 @@ public class BollettaPodService {
     private final BollettaPodRepo bollettaPodRepo;
     private final dettaglioCostoRepo dettaglioCostoRepo;
     private final ClienteService clienteService;
-    private final CostoEnergiaService costoEnergiaService;
+    private final CostiEnergiaService costoEnergiaService;
     private final CostoArticoloService costoArticoloService;
     private final dettaglioCostoService costiService;
 
 
-    public BollettaPodService(BollettaPodRepo bollettaRepo, ClienteService clienteService, CostoEnergiaService costoEnergiaService, CostoArticoloService costoArticoloService, dettaglioCostoService costiService, dettaglioCostoRepo dettaglioCostoRepo) {
+    public BollettaPodService(BollettaPodRepo bollettaRepo, ClienteService clienteService, CostiEnergiaService costoEnergiaService, CostoArticoloService costoArticoloService, dettaglioCostoService costiService, dettaglioCostoRepo dettaglioCostoRepo) {
         this.bollettaPodRepo = bollettaRepo;
         this.clienteService = clienteService;
         this.costoEnergiaService = costoEnergiaService;

@@ -162,4 +162,13 @@ public class ClienteService {
         return true;
     }
 
+    @Transactional
+    public boolean existsById(Integer clientId) {
+        if (clientId == null || clientId <= 0) {
+            return false;
+        }
+        return clienteRepo.findById(clientId) != null;
+    }
+
+
 }

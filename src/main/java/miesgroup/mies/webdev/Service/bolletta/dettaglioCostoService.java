@@ -280,7 +280,7 @@ public class dettaglioCostoService {
         return costiRepo.getQueryAllCosti();
     }
 
-    public long deleteIds(List<Long> ids) {
+    public Long deleteIds(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             throw new IllegalArgumentException("Lista di ID mancante o vuota");
         }

@@ -6,17 +6,14 @@ import jakarta.transaction.Transactional;
 import miesgroup.mies.webdev.Model.Periodo;
 import miesgroup.mies.webdev.Model.bolletta.BollettaPod;
 import miesgroup.mies.webdev.Model.bolletta.Pod;
-import miesgroup.mies.webdev.Model.budget.Budget;
-import miesgroup.mies.webdev.Model.budget.BudgetAll;
 import miesgroup.mies.webdev.Model.cliente.Cliente;
 import miesgroup.mies.webdev.Repository.bolletta.BollettaPodRepo;
 import miesgroup.mies.webdev.Repository.bolletta.PodRepo;
 import miesgroup.mies.webdev.Repository.file.FileRepo;
 import miesgroup.mies.webdev.Service.DateUtils;
 import miesgroup.mies.webdev.Service.LogCustom;
-import miesgroup.mies.webdev.Service.budget.BudgetAllService;
+import miesgroup.mies.webdev.Service.bolletta.verBollettaPodService;
 import miesgroup.mies.webdev.Service.budget.BudgetManagerService;
-import miesgroup.mies.webdev.Service.budget.BudgetService;
 import org.w3c.dom.Document;
 import org.xml.sax.SAXException;
 
@@ -33,10 +30,9 @@ public class LetturaBolletta {
     @Inject FileRepo fileRepo;
     @Inject BollettaPodRepo BollettaPodRepo;
     @Inject PodRepo podRepo;
-    @Inject BudgetService budgetService;
-    @Inject BudgetAllService budgetAllService;
-    @Inject Lettura lettura;
     @Inject BudgetManagerService budgetManager;
+    @Inject Lettura lettura;
+    @Inject verBollettaPodService verBollettaPodService;
 
     @Transactional
     public String extractValuesFromXmlA2A(byte[] xmlData, String idPod) {
@@ -90,6 +86,9 @@ public class LetturaBolletta {
                 LogCustom.logKV("SpeseEnergia", bolletta.getSpeseEne());
                 LogCustom.logKV("TotAttiva(kWh)", bolletta.getTotAtt());
                 LogCustom.logKV("Oneri", bolletta.getOneri());
+
+                // Chiamata al servizio per la verifica A2A
+                verBollettaPodService.A2AVerifica(bolletta);
 
                 // Recupera il cliente dal POD
                 Pod pod = podRepo.findById(bolletta.getIdPod());

@@ -4,12 +4,12 @@ import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import miesgroup.mies.webdev.Model.cliente.Cliente;
-import miesgroup.mies.webdev.Model.bolletta.CostoEnergia;
+import miesgroup.mies.webdev.Model.bolletta.CostiEnergia;
 import miesgroup.mies.webdev.Rest.Model.ClienteRequest;
 import miesgroup.mies.webdev.Rest.Model.ClienteResponse;
 import miesgroup.mies.webdev.Rest.Model.KeepLoggedRequest;
 import miesgroup.mies.webdev.Service.cliente.ClienteService;
-import miesgroup.mies.webdev.Service.bolletta.CostoEnergiaService;
+import miesgroup.mies.webdev.Service.bolletta.CostiEnergiaService;
 import miesgroup.mies.webdev.Service.cliente.SessionService;
 
 import java.util.List;
@@ -20,11 +20,11 @@ public class ClienteResource {
 
     private final ClienteService clienteService;
     private final SessionService sessionService;
-    private final CostoEnergiaService costoEnergiaService;
+    private final CostiEnergiaService costoEnergiaService;
 
     public ClienteResource(ClienteService clienteService,
                            SessionService sessionService,
-                           CostoEnergiaService costoEnergiaService) {
+                           CostiEnergiaService costoEnergiaService) {
         this.clienteService = clienteService;
         this.sessionService = sessionService;
         this.costoEnergiaService = costoEnergiaService;
@@ -254,7 +254,7 @@ public class ClienteResource {
                 .toList();
         return Response.ok(responseList).build();
     }
-
+/*
     // Ritorna SEMPRE la lista dei costi (vuota o piena), mai 404
     @GET
     @Path("/costi-energia")
@@ -266,7 +266,7 @@ public class ClienteResource {
                     .entity("Sessione non valida")
                     .build();
         }
-        List<CostoEnergia> costi = costoEnergiaService.getCostiEnergia(idUtente);
+        List<CostiEnergia> costi = costoEnergiaService.getCostiEnergia(idUtente);
         return Response.ok(costi).build();
     }
 
@@ -275,7 +275,7 @@ public class ClienteResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response insertCostoEnergia(@CookieParam("SESSION_COOKIE") int sessionId,
-                                       List<CostoEnergia> costiEnergia) {
+                                       List<CostiEnergia> costiEnergia) {
         Integer idUtente = sessionService.trovaUtentebBySessione(sessionId);
         if (idUtente == null || idUtente == 0) {
             return Response.status(Response.Status.UNAUTHORIZED)
@@ -290,7 +290,7 @@ public class ClienteResource {
                     .build();
         }
 
-        for (CostoEnergia costo : costiEnergia) {
+        for (CostiEnergia costo : costiEnergia) {
             costo.setCliente(cliente);
             if (costo.getNomeCosto() == null || costo.getCostoEuro() == null) {
                 return Response.status(Response.Status.BAD_REQUEST)
@@ -302,6 +302,8 @@ public class ClienteResource {
 
         return Response.ok().build();
     }
+
+ */
 
     @PUT
     @Path("/update-password")
