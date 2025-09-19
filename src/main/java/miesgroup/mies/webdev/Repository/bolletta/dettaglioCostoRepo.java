@@ -295,12 +295,48 @@ public class dettaglioCostoRepo implements PanacheRepositoryBase<dettaglioCosto,
         return sum;
     }
 
+    private String translateArticle(String item, String anno) {
+        try {
+            int year = Integer.parseInt(anno);
+            if (year < 2025) {
+                return item; // nessuna traduzione
+            }
+        } catch (NumberFormatException e) {
+            System.out.println("Anno non valido: " + anno + ", mantengo item originale");
+            return item;
+        }
+
+        // Traduzioni post 2025
+        Map<String, String> translationMap = new HashMap<>();
+        translationMap.put("Art. 25 bis", "Art. 25 bis");
+        translationMap.put("Art. 45 (Annuale)", "Art. 3-24.3");
+        translationMap.put("Art. 44.3", "Art. 3-24.4");
+        translationMap.put("Art. 46", "Art. 3-24.5");
+        translationMap.put("Art. 73", "Art. 3-24.6");
+        translationMap.put("Art. 44 bis", "Art. 3-24.7");
+        translationMap.put("Art. 45 (Trimestrale)", "Art. 3-24.8,1");
+
+        String translated = translationMap.get(item);
+        if (translated == null) {
+            System.out.println("Nessuna traduzione trovata per: " + item + " (anno=" + anno + ")");
+            return item;
+        }
+
+        return translated;
+    }
+
+
     // Corrispettivi DISPACCIAMENTO (€/kWh)
     public Double getCorrispettiviDispacciamentoA2A(String item, int mese, String anno, double potenza, String tensione) {
         System.out.println("getCorrispettiviDispacciamentoA2A called with item=" + item + ", mese=" + mese + ", anno=" + anno + ", potenza=" + potenza + ", tensione=" + tensione);
-        return getCosto("dispacciamento", item, null, null,
+
+        String translatedItem = translateArticle(item, anno);
+        System.out.println("Tradotto item=" + translatedItem);
+
+        return getCosto("dispacciamento", translatedItem, null, null,
                 "€/kWh", mese, potenza, tensione, anno, null);
     }
+
 
     // TRASPORTI (var/fissa/potenza)
     public Double getCostiTrasporto(String item, int mese, double potenza, String tensione, String um, String anno) {

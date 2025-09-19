@@ -1,6 +1,7 @@
 package miesgroup.mies.webdev.Service.bolletta;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import miesgroup.mies.webdev.Model.bolletta.BollettaPod;
 import miesgroup.mies.webdev.Model.cliente.Cliente;
@@ -14,6 +15,7 @@ import miesgroup.mies.webdev.Repository.cliente.ClienteRepo;
 import miesgroup.mies.webdev.Repository.cliente.SessionRepo;
 import miesgroup.mies.webdev.Rest.Exception.NotYourPodException;
 import miesgroup.mies.webdev.Rest.Model.PodResponse;
+import miesgroup.mies.webdev.Service.cliente.ClienteService;
 import miesgroup.mies.webdev.Service.cliente.SessionService;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -38,6 +40,8 @@ public class PodService {
     private final ClienteRepo clienteRepo;
     private final BudgetRepo budgetRepo;
     private final BollettaPodRepo bollettaRepo;
+    @Inject
+    private ClienteService clienteService;
 
     public PodService(
             PodRepo podRepo,
@@ -66,6 +70,7 @@ public class PodService {
         String fornitore = "", sede = "", cap = "", citta = "";
         String periodFattur = null; // ← nuovo campo estratto
         boolean exists = false;
+        String classeAgevolazione = null; // nuovo campo per Decreto Energivori
 
         try {
             DocumentBuilderFactory f = DocumentBuilderFactory.newInstance();
@@ -171,19 +176,84 @@ public class PodService {
                         periodFattur = toks[0].trim();
                     }
                 }
+
+                // 6. Estrazione Decreto Energivori - classe di agevolazione (su 3 righe)
+                if (classeAgevolazione == null && containsIgnoreCase(txt, "Decreto Energivori") &&
+                        containsIgnoreCase(txt, "classe di")) {
+
+                    String value = null;
+
+                    // Controlla se questa riga contiene l'inizio della dicitura
+                    boolean isStartLine = containsIgnoreCase(txt, "Decreto Energivori") &&
+                            containsIgnoreCase(txt, "classe di");
+
+                    if (isStartLine) {
+                        // Cerca "agevolazione" nella riga successiva
+                        if (i + 1 < lines.getLength()) {
+                            String secondLine = safeText(lines.item(i + 1)).trim();
+
+                            if (containsIgnoreCase(secondLine, "agevolazione")) {
+                                // Se trovato "agevolazione", il valore è nella terza riga
+                                if (i + 2 < lines.getLength()) {
+                                    String thirdLine = safeText(lines.item(i + 2)).trim();
+
+                                    if (!thirdLine.isEmpty()) {
+                                        // Prende la prima parola della terza riga
+                                        String[] parts = thirdLine.split("\\s+");
+                                        if (parts.length > 0 && !parts[0].isEmpty()) {
+                                            value = parts[0].trim();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (value != null && !value.isEmpty()) {
+                        classeAgevolazione = value;
+                        System.out.println("classeAgevolazione estratta: " + classeAgevolazione);
+                    }
+                }
+            }
+
+            // Aggiorna sempre la classe di agevolazione se trovata (indipendentemente se POD esiste già)
+            if (classeAgevolazione != null && !classeAgevolazione.isEmpty()) {
+                String normalized = normalizeClasseAgevolazione(classeAgevolazione);
+                if (normalized != null && !normalized.isEmpty()) classeAgevolazione = normalized;
+                else classeAgevolazione = null;
+                System.out.println("classeAgevolazione aggiornata: " + classeAgevolazione);
+                // Aggiorna la tabella cliente
+                clienteService.updateCliente(idUtente, "classeAgevolazione", classeAgevolazione);
             }
 
             // 5) Se trovato POD valido → creaPod + salva periodicità
             if (!idPod.isEmpty()) {
                 creaPod(vals, idUtente, idPod, fornitore, citta, cap, sede, periodFattur);
             }
-
         } catch (ParserConfigurationException | SAXException | IOException e) {
             e.printStackTrace();
         }
 
         return idPod;
     }
+
+    private String normalizeClasseAgevolazione(String raw) {
+        if (raw == null) return null;
+
+        String s = raw.trim().toUpperCase();
+
+        // Mantieni "Val" come è
+        if (s.equals("VAL")) return "Val";
+
+        // Converti ASOS1/2/3 in Fat1/2/3
+        if (s.equals("ASOS1")) return "Fat1";
+        if (s.equals("ASOS2")) return "Fat2";
+        if (s.equals("ASOS3")) return "Fat3";
+
+        // Se non riconosciuto, restituisci il valore originale pulito
+        return raw.trim();
+    }
+
 
     /** Normalizza la periodicità a una forma canonica (MENSILE, BIMESTRALE, TRIMESTRALE, QUADRIMESTRALE, SEMESTRALE, ANNUALE) quando riconosciuta. */
     private String normalizePeriodicita(String raw) {
