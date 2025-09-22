@@ -7,7 +7,6 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.transaction.Transactional;
 import miesgroup.mies.webdev.Model.budget.BudgetAll;
-import miesgroup.mies.webdev.Model.cliente.Cliente;
 import miesgroup.mies.webdev.Repository.budget.BudgetAllRepo;
 
 import java.util.List;
@@ -28,23 +27,45 @@ public class BudgetAllService {
 
     /**
      * Upsert di BudgetAll: prima risolvo il Cliente, poi delego al repo.
+     *
+     * @return
      */
     @Transactional
-    public boolean upsertAggregato(BudgetAll budgetAll) {
-        // Imposto IdPod su "ALL" per l'aggregato
-        budgetAll.setIdPod("ALL");
+    public boolean upsertAggregato(BudgetAll nuovo) {
+        BudgetAll existing = em.createQuery(
+                        "SELECT b FROM BudgetAll b WHERE b.cliente.id = :idUtente AND b.anno = :anno AND b.mese = :mese AND b.idPod = :pod",
+                        BudgetAll.class
+                )
+                .setParameter("idUtente", nuovo.getCliente().getId())
+                .setParameter("anno", nuovo.getAnno())
+                .setParameter("mese", nuovo.getMese())
+                .setParameter("pod", nuovo.getIdPod())
+                .getResultStream()
+                .findFirst()
+                .orElse(null);
 
-        // 1) risolvo l'entità Cliente dal DB
-        Long clienteId = (long) budgetAll.getCliente().getId();
-        Cliente managedCliente = em.find(Cliente.class, clienteId);
-        if (managedCliente == null) {
-            throw new IllegalArgumentException("Cliente non trovato: " + clienteId);
+        if (existing == null) {
+            em.persist(nuovo); // prima volta → insert
+        } else {
+            // update valori base, preservando percentuali già salvate
+            existing.setPrezzoEnergiaBase(nuovo.getPrezzoEnergiaBase());
+            existing.setConsumiBase(nuovo.getConsumiBase());
+            existing.setOneriBase(nuovo.getOneriBase());
+            // se vuoi aggiornare anche percentuali solo se erano null:
+            if (existing.getPrezzoEnergiaPerc() == null) {
+                existing.setPrezzoEnergiaPerc(nuovo.getPrezzoEnergiaPerc());
+            }
+            if (existing.getConsumiPerc() == null) {
+                existing.setConsumiPerc(nuovo.getConsumiPerc());
+            }
+            if (existing.getOneriPerc() == null) {
+                existing.setOneriPerc(nuovo.getOneriPerc());
+            }
+            em.merge(existing); // update
         }
-        budgetAll.setCliente(managedCliente);
-
-        // 2) delego al repository
-        return allRepo.upsertBudgetAll(budgetAll);
+        return false;
     }
+
 
     @Transactional(Transactional.TxType.SUPPORTS)
     public List<BudgetAll> getAggregatiPerUtenteEAnno(Long idUtente, Integer anno) {

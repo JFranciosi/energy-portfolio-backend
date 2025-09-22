@@ -14,11 +14,9 @@ import miesgroup.mies.webdev.Model.cliente.Cliente;
 import miesgroup.mies.webdev.Repository.bolletta.BollettaPodRepo;
 import miesgroup.mies.webdev.Repository.bolletta.PodRepo;
 import miesgroup.mies.webdev.Repository.cliente.ClienteRepo;
-import miesgroup.mies.webdev.Repository.cliente.SessionRepo;
 import miesgroup.mies.webdev.Repository.file.FileRepo;
 import miesgroup.mies.webdev.Rest.Model.BollettaPodResponse;
 import miesgroup.mies.webdev.Rest.Model.FileDto;
-import miesgroup.mies.webdev.Service.DateUtils;
 import miesgroup.mies.webdev.Service.bolletta.BollettaPodService;
 import miesgroup.mies.webdev.Service.bolletta.verBollettaPodService;
 import miesgroup.mies.webdev.Service.budget.BudgetAllService;
@@ -31,12 +29,8 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.text.Normalizer;
 import java.time.*;
-import java.time.format.DateTimeFormatter;
-import java.time.format.TextStyle;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.sql.SQLException;
@@ -48,19 +42,13 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.StringWriter;
 
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-import org.xml.sax.SAXException;
 
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-
-import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -99,7 +87,6 @@ public class FileService {
     }
 
     // ─────────────────────────────────────────────────────────────
-
     // Mappa periodicità → numero di mesi attesi
     private int mesiPerPeriodicita(String periodicita) {
         if (periodicita == null) return 1; // fallback conservativo
@@ -114,27 +101,12 @@ public class FileService {
         }
     }
 
-    // Calcola i mesi coperti in modo inclusivo, normalizzando ai limiti di mese
-    private int mesiCopertiInclusivi(java.util.Date inizio, java.util.Date fine) {
-        java.time.ZoneId zone = java.time.ZoneId.systemDefault();
-        java.time.LocalDate start = inizio.toInstant().atZone(zone).toLocalDate();
-        java.time.LocalDate end   = fine.toInstant().atZone(zone).toLocalDate();
-
-        // Normalizza a inizio mese / inizio mese per contare i mesi in modo robusto
-        java.time.LocalDate s = start.withDayOfMonth(1);
-        java.time.LocalDate e = end.withDayOfMonth(1);
-
-        long diff = java.time.temporal.ChronoUnit.MONTHS.between(s, e);
-        return (int) diff + 1; // inclusivo
-    }
-
     // Dispatcher: chiama la funzione giusta in base alla valutazione
-    // Se non l'hai già
     enum TipoBolletta { NORMALE, RICALCOLO_SOSPETTO, RICALCOLO }
 
     // ======================================================
-// ENTRY POINT
-// ======================================================
+    // ENTRY POINT
+    // ======================================================
     public void processaBolletta(byte[] xmlData, Document doc, String idPod) {
         // 1) Periodo totale
         Periodo periodoTotale = lettura.extractPeriodo(doc);  // es: 01/01/2024 -> 31/10/2024
@@ -156,7 +128,7 @@ public class FileService {
         List<YearMonth> mesiCorrentiEffettivi = trovaMesiCorrentiEffettivi(periodoTotale, periodoRicalcolo);
         logKV("Mesi correnti effettivi", mesiCorrentiEffettivi.toString());
 
-        // 6) Dirama
+        // 6) Dirama + Budget Sync
         if (tipo == TipoBolletta.RICALCOLO) {
             // Flusso ricalcolo con range confermato
             letturaRicalcoloBolletta.processaBollettaConRicalcolo(
@@ -172,6 +144,14 @@ public class FileService {
             } catch (Exception e) {
                 System.err.println("[processaBollettaConRicalcolo] Errore verifica A2A: " + e.getMessage());
             }
+
+            // 🔵 Budget Sync: mesi ricalcolo + mesi correnti
+            List<YearMonth> target = new ArrayList<>();
+            target.addAll(monthsBetweenInclusive(toYearMonth(periodoRicalcolo.getInizio()), toYearMonth(periodoRicalcolo.getFine())));
+            target.addAll(mesiCorrentiEffettivi);
+            target = target.stream().distinct().collect(Collectors.toList());
+            syncBudgetAndBudgetAll(idPod, target);
+
         } else if (tipo == TipoBolletta.RICALCOLO_SOSPETTO) {
             // Nessuna riga "RICALCOLI PERIODO", ma range > periodicità: gestisco come ricalcolo "soft"
             if (!mesiCorrentiEffettivi.isEmpty()) {
@@ -188,19 +168,38 @@ public class FileService {
                 } catch (Exception e) {
                     System.err.println("[processaBollettaConRicalcolo] Errore verifica A2A: " + e.getMessage());
                 }
+
+                // 🔵 Budget Sync: tutti i mesi coperti dal documento
+                syncBudgetAndBudgetAll(
+                        idPod,
+                        monthsBetweenInclusive(toYearMonth(periodoTotale.getInizio()), toYearMonth(periodoTotale.getFine()))
+                );
+
             } else {
-                // Nessun indizio solido di ricalcolo: parsing normale
+                // NORMALE
                 letturaBolletta.extractValuesFromXmlA2A(xmlData, idPod);
+
+                // 🔵 Budget Sync: mesi del documento (tipicamente 1)
+                syncBudgetAndBudgetAll(
+                        idPod,
+                        monthsBetweenInclusive(toYearMonth(periodoTotale.getInizio()), toYearMonth(periodoTotale.getFine()))
+                );
             }
         } else {
             // NORMALE
             letturaBolletta.extractValuesFromXmlA2A(xmlData, idPod);
+
+            // 🔵 Budget Sync: mesi del documento (tipicamente 1)
+            syncBudgetAndBudgetAll(
+                    idPod,
+                    monthsBetweenInclusive(toYearMonth(periodoTotale.getInizio()), toYearMonth(periodoTotale.getFine()))
+            );
         }
     }
 
     // ======================================================
-// DECISIONE TIPO BOLLETTA (range vs periodicità)
-// ======================================================
+    // DECISIONE TIPO BOLLETTA (range vs periodicità)
+    // ======================================================
     private TipoBolletta valutaTipoBolletta(Periodo periodoTotale, String periodicita) {
         try {
             if (periodoTotale == null || periodoTotale.getInizio() == null || periodoTotale.getFine() == null) {
@@ -222,9 +221,9 @@ public class FileService {
         }
     }
 
-// ======================================================
-// ESTRAZIONE PERIODO RICALCOLI DAL PDF
-// ======================================================
+    // ======================================================
+    // ESTRAZIONE PERIODO RICALCOLI DAL PDF
+    // ======================================================
     /**
      * Cerca la riga:
      *   RICALCOLI
@@ -268,9 +267,9 @@ public class FileService {
         return null;
     }
 
-// ======================================================
-// MESE/I CORRENTE/I EFFETTIVI
-// ======================================================
+    // ======================================================
+    // MESE/I CORRENTE/I EFFETTIVI
+    // ======================================================
     /**
      * Restituisce i mesi nel range totale che NON sono compresi nel range ricalcoli.
      * Esempio: totale Jan–Oct, ricalcoli Jan–Sep => ritorna [Oct].
@@ -298,8 +297,8 @@ public class FileService {
     }
 
     // ======================================================
-// UTILS DATA
-// ======================================================
+    // UTILS DATA
+    // ======================================================
     private YearMonth toYearMonth(java.util.Date d) {
         Instant inst = d.toInstant();
         ZonedDateTime zdt = inst.atZone(ZoneId.systemDefault());
@@ -329,7 +328,9 @@ public class FileService {
         return c.getTime();
     }
 
-
+    // ======================================================
+    // FILE CRUD
+    // ======================================================
 
     @Transactional
     public int saveFile(String fileName, byte[] fileData) throws SQLException {
@@ -479,8 +480,8 @@ public class FileService {
     }
 
     // ─────────────────────────────────────────────────────────────
-// FileService - Utility condivise per bollette/ricalcoli
-// ─────────────────────────────────────────────────────────────
+    // FileService - Utility condivise per bollette/ricalcoli
+    // ─────────────────────────────────────────────────────────────
     public static String fmt(Date d) {
         if (d == null) return "null";
         java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd/MM/yyyy");
@@ -513,8 +514,8 @@ public class FileService {
         return mesi[c.get(Calendar.MONTH)];
     }
     public static String monthNameOf(YearMonth ym) {
-        String nome = ym.getMonth().getDisplayName(java.time.format.TextStyle.FULL, Locale.ITALIAN);
-        return canonizzaMese(nome);
+        String[] mesi = {"Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"};
+        return mesi[ym.getMonthValue()-1];
     }
     public static YearMonth ymOf(Date d) {
         Calendar c = Calendar.getInstance(); c.setTime(d);
@@ -572,7 +573,6 @@ public class FileService {
             String meseCorrente,
             List<LetturaRicalcoloBolletta.VoceMisura> misureMese
     ) {
-        Map<String, Map<String, Map<String, Integer>>> out = new LinkedHashMap<>();
         Map<String, Map<String, Integer>> catFasce = new LinkedHashMap<>();
         for (LetturaRicalcoloBolletta.VoceMisura vm : misureMese) {
             int lastSpace = vm.item.lastIndexOf(' ');
@@ -582,6 +582,7 @@ public class FileService {
             int valore       = (int)Math.round(vm.consumo);
             catFasce.computeIfAbsent(categoria, k -> new LinkedHashMap<>()).merge(fascia, valore, Integer::sum);
         }
+        Map<String, Map<String, Map<String, Integer>>> out = new LinkedHashMap<>();
         out.put(meseCorrente, catFasce);
         return out;
     }
@@ -636,4 +637,163 @@ public class FileService {
         return out;
     }
 
+    // ======================================================
+    // 🔵 BUDGET SYNC (Budget + BudgetAll)
+    // ======================================================
+    @Transactional
+    protected void syncBudgetAndBudgetAll(String idPod, List<YearMonth> mesi) {
+        if (mesi == null || mesi.isEmpty()) return;
+        try {
+            Pod pod = podRepo.findById(idPod);
+            if (pod == null) {
+                logWarn("[BudgetSync] POD non trovato: " + idPod);
+                return;
+            }
+            Cliente utente = pod.getUtente();
+            int idUtente = utente.getId();
+
+            EntityManager em = BollettaPodRepo.getEntityManager();
+
+            for (YearMonth ym : mesi) {
+                int anno = ym.getYear();
+                int mese = ym.getMonthValue();
+                String meseNome = monthNameOf(ym);
+
+                // --- Aggregati bolletta per POD/mese/anno
+                Object[] arr = (Object[]) em.createNativeQuery(
+                                "SELECT " +
+                                        " COALESCE(SUM(TOT_Att),0), " +
+                                        " COALESCE(SUM(Spese_Ene),0), " +
+                                        " COALESCE(SUM(COALESCE(Spese_Trasp,0)+COALESCE(Oneri,0)),0) " +
+                                        "FROM bolletta_pod WHERE id_pod=:pod AND Anno=:anno AND Mese=:mese"
+                        )
+                        .setParameter("pod", idPod)
+                        .setParameter("anno", String.valueOf(anno))
+                        .setParameter("mese", meseNome)
+                        .getSingleResult();
+
+                double consumoTot       = ((Number) arr[0]).doubleValue();
+                double spesaEnergiaTot  = ((Number) arr[1]).doubleValue();
+                double oneriTot         = ((Number) arr[2]).doubleValue();
+
+                // Invece di lanciare warn, fai solo skip su mesi senza dati
+                if (consumoTot <= 0 && spesaEnergiaTot <= 0 && oneriTot <= 0) {
+                    logKV("[BudgetSync] Skip mese senza dati", monthNameOf(ym) + " " + anno + " per POD " + idPod);
+                    continue;
+                }
+
+                // --- Upsert BUDGET (per POD)
+                upsertBudgetBase(em, idPod, idUtente, anno, mese, consumoTot, spesaEnergiaTot, oneriTot);
+
+                // --- Aggregati ALL (tutti i POD dell'utente)
+                Object[] aggAll = (Object[]) em.createNativeQuery(
+                                "SELECT " +
+                                        " COALESCE(SUM(TOT_Att),0), " +
+                                        " COALESCE(SUM(Spese_Ene),0), " +
+                                        " COALESCE(SUM(COALESCE(Spese_Trasp,0)+COALESCE(Oneri,0)),0) " +
+                                        "FROM bolletta_pod " +
+                                        "WHERE id_pod IN (SELECT id_pod FROM pod WHERE id_utente=:idUtente) " +
+                                        "AND Anno=:anno AND Mese=:mese"
+                        )
+                        .setParameter("idUtente", idUtente)
+                        .setParameter("anno", String.valueOf(anno))
+                        .setParameter("mese", meseNome)
+                        .getSingleResult();
+
+                double consAll   = ((Number) aggAll[0]).doubleValue();
+                double spesaAll  = ((Number) aggAll[1]).doubleValue();
+                double oneriAll  = ((Number) aggAll[2]).doubleValue();
+
+                if (consAll <= 0 && spesaAll <= 0 && oneriAll <= 0) {
+                    logKV("[BudgetSync] Skip ALL senza dati", monthNameOf(ym) + " " + anno + " user=" + idUtente);
+                    continue;
+                }
+
+                // --- Upsert BUDGET_ALL (id_pod='ALL')
+                try {
+                    BudgetAll nuovo = new BudgetAll();
+                    nuovo.setIdPod("ALL");
+                    nuovo.setAnno(anno);
+                    nuovo.setMese(mese);
+                    nuovo.setCliente(utente);
+                    nuovo.setPrezzoEnergiaBase(spesaAll);
+                    nuovo.setConsumiBase(consAll);
+                    nuovo.setOneriBase(oneriAll);
+                    // percentuali di default: preservate dalla repo se già presenti
+                    nuovo.setPrezzoEnergiaPerc(0d);
+                    nuovo.setConsumiPerc(0d);
+                    nuovo.setOneriPerc(0d);
+
+                    // metodo service/repo che fa insert/update senza esplodere su unique key
+                    budgetAllService.upsertAggregato(nuovo);
+                } catch (Throwable ex) {
+                    // Fallback: MySQL upsert nativo (se il service non espone upsert)
+                    logWarn("[BudgetSync] upsertAggregato non disponibile, uso fallback SQL: " + ex.getMessage());
+                    em.createNativeQuery(
+                                    "INSERT INTO budget_all (id_pod, anno, mese, prezzo_energia_base, consumi_base, oneri_base, " +
+                                            "prezzo_energia_perc, consumi_perc, oneri_perc, Id_Utente, editable) " +
+                                            "VALUES ('ALL', :anno, :mese, :spesa, :consumo, :oneri, 0, 0, 0, :idUtente, 1) " +
+                                            "ON DUPLICATE KEY UPDATE " +
+                                            "prezzo_energia_base=VALUES(prezzo_energia_base), " +
+                                            "consumi_base=VALUES(consumi_base), " +
+                                            "oneri_base=VALUES(oneri_base)"
+                            )
+                            .setParameter("anno", anno)
+                            .setParameter("mese", mese)
+                            .setParameter("spesa", spesaAll)
+                            .setParameter("consumo", consAll)
+                            .setParameter("oneri", oneriAll)
+                            .setParameter("idUtente", idUtente)
+                            .executeUpdate();
+                }
+            }
+        } catch (Exception e) {
+            logWarn("[BudgetSync] Errore generale syncBudgetAndBudgetAll: " + e.getMessage());
+        }
+    }
+
+    private void upsertBudgetBase(EntityManager em, String pod, int idUtente, int anno, int mese,
+                                  double consumo, double spesaEnergia, double oneri) {
+        // Verifica se esiste già
+        List<?> res = em.createNativeQuery(
+                        "SELECT id FROM budget WHERE id_pod=:pod AND anno=:anno AND mese=:mese"
+                )
+                .setParameter("pod", pod)
+                .setParameter("anno", anno)
+                .setParameter("mese", mese)
+                .getResultList();
+
+        if (res == null || res.isEmpty()) {
+            // insert
+            em.createNativeQuery(
+                            "INSERT INTO budget (id_pod, anno, mese, prezzo_energia_base, consumi_base, oneri_base, " +
+                                    "prezzo_energia_perc, consumi_perc, oneri_perc, Id_Utente) " +
+                                    "VALUES (:pod, :anno, :mese, :spesa, :consumo, :oneri, 0, 0, 0, :idUtente)"
+                    )
+                    .setParameter("pod", pod)
+                    .setParameter("anno", anno)
+                    .setParameter("mese", mese)
+                    .setParameter("spesa", spesaEnergia)
+                    .setParameter("consumo", consumo)
+                    .setParameter("oneri", oneri)
+                    .setParameter("idUtente", idUtente)
+                    .executeUpdate();
+            logOk(String.format("[BudgetSync] INSERT budget %s %02d/%d (kWh=%.2f, energia=%.2f€, oneri=%.2f€)",
+                    pod, mese, anno, consumo, spesaEnergia, oneri));
+        } else {
+            // update
+            Number id = (Number) res.get(0);
+            em.createNativeQuery(
+                            "UPDATE budget SET prezzo_energia_base=:spesa, consumi_base=:consumo, oneri_base=:oneri " +
+                                    "WHERE id=:id"
+                    )
+                    .setParameter("spesa", spesaEnergia)
+                    .setParameter("consumo", consumo)
+                    .setParameter("oneri", oneri)
+                    .setParameter("id", id.longValue())
+                    .executeUpdate();
+            logOk(String.format("[BudgetSync] UPDATE budget %s %02d/%d (kWh=%.2f, energia=%.2f€, oneri=%.2f€)",
+                    pod, mese, anno, consumo, spesaEnergia, oneri));
+        }
+    }
 }

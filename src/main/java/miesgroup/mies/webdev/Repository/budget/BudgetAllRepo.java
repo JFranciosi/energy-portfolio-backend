@@ -15,8 +15,32 @@ public class BudgetAllRepo implements PanacheRepositoryBase<BudgetAll, Long> {
      * Inserisce o aggiorna un aggregato BudgetAll per utente, anno e mese.
      */
     public boolean upsert(BudgetAll ba) {
-        persist(ba);
-        return ba.getId() != null;
+        if (ba.getId() == null) {
+            // Controlla se esiste già una riga con stessa chiave logica (cliente, anno, mese, pod)
+            Optional<BudgetAll> existing = find(
+                    "cliente.id = ?1 and anno = ?2 and mese = ?3 and idPod = ?4",
+                    ba.getCliente().getId(), ba.getAnno(), ba.getMese(), ba.getIdPod()
+            ).firstResultOptional();
+
+            if (existing.isPresent()) {
+                BudgetAll e = existing.get();
+                // aggiorna solo i valori base, preservando percentuali già presenti
+                e.setPrezzoEnergiaBase(ba.getPrezzoEnergiaBase());
+                e.setConsumiBase(ba.getConsumiBase());
+                e.setOneriBase(ba.getOneriBase());
+                if (e.getPrezzoEnergiaPerc() == null) e.setPrezzoEnergiaPerc(ba.getPrezzoEnergiaPerc());
+                if (e.getConsumiPerc() == null) e.setConsumiPerc(ba.getConsumiPerc());
+                if (e.getOneriPerc() == null) e.setOneriPerc(ba.getOneriPerc());
+                getEntityManager().merge(e);
+                return true;
+            } else {
+                persist(ba);
+                return ba.getId() != null;
+            }
+        } else {
+            ba = getEntityManager().merge(ba);
+            return ba.getId() != null;
+        }
     }
 
     /**
