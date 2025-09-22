@@ -162,5 +162,18 @@ public class CostiPeriodiRepo implements PanacheRepositoryBase<CostiPeriodi, Int
         }
         return true;
     }
+
+    /**
+     * Trova il periodo attivo per un energy_cost_id e mese specifico
+     */
+    public Optional<CostiPeriodi> findActiveByEnergyIdAndMonth(Integer energyCostId, Integer mese) {
+        // Trova il periodo con month_start <= mese, ordinato per month_start DESC (il più recente)
+        return find("energyCostId = ?1 AND monthStart <= ?2 ORDER BY monthStart DESC",
+                energyCostId, mese).firstResultOptional();
+    }
+
+    public long deleteByEnergyCostIdAndMonth(Integer energyCostId, Integer monthStart) {
+        return delete("energyCostId = ?1 AND monthStart = ?2", energyCostId, monthStart);
+    }
 }
 

@@ -8,6 +8,7 @@ import miesgroup.mies.webdev.Model.Periodo;
 import miesgroup.mies.webdev.Model.bolletta.BollettaPod;
 import miesgroup.mies.webdev.Model.bolletta.Pod;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -104,6 +105,10 @@ public class BollettaPodRepo implements PanacheRepositoryBase<BollettaPod, Integ
         double f2 = Optional.ofNullable(b.getF2Pot()).orElse(0.0);
         double f3 = Optional.ofNullable(b.getF3Pot()).orElse(0.0);
         return Math.max(f1, Math.max(f2, f3));
+    }
+
+    public List<BollettaPod> findByIdPodAndMeseAndAnno(String idPod, String mese, String anno) {
+        return list("idPod = ?1 AND mese = ?2 AND anno = ?3", idPod, mese, anno);
     }
 
     public void updateBolletta(BollettaPod bollettaEsistente) {
@@ -348,5 +353,49 @@ public class BollettaPodRepo implements PanacheRepositoryBase<BollettaPod, Integ
                 (Double) result[1],  // somma speseEnergia
                 (Double) result[2]   // somma oneri (se usati)
         );
+    }
+
+    // Metodi per recuperare kWh
+    public Double getF0Kwh(String nomeBolletta, String mese, String anno) {
+        BollettaPod b = find("nomeBolletta = ?1 AND mese = ?2 AND anno = ?3",
+                nomeBolletta, mese, anno).firstResult();
+        return b != null ? Optional.ofNullable(b.getF0Kwh()).orElse(0.0) : 0.0;
+    }
+
+    public Double getF1Kwh(String nomeBolletta, String mese, String anno) {
+        BollettaPod b = find("nomeBolletta = ?1 AND mese = ?2 AND anno = ?3",
+                nomeBolletta, mese, anno).firstResult();
+        return b != null ? Optional.ofNullable(b.getF1Kwh()).orElse(0.0) : 0.0;
+    }
+
+    public Double getF2Kwh(String nomeBolletta, String mese, String anno) {
+        BollettaPod b = find("nomeBolletta = ?1 AND mese = ?2 AND anno = ?3",
+                nomeBolletta, mese, anno).firstResult();
+        return b != null ? Optional.ofNullable(b.getF2Kwh()).orElse(0.0) : 0.0;
+    }
+
+    public Double getF3Kwh(String nomeBolletta, String mese, String anno) {
+        BollettaPod b = find("nomeBolletta = ?1 AND mese = ?2 AND anno = ?3",
+                nomeBolletta, mese, anno).firstResult();
+        return b != null ? Optional.ofNullable(b.getF3Kwh()).orElse(0.0) : 0.0;
+    }
+
+    // Metodi per recuperare perdite kWh (nota: i getter sono getF1PerdKwh non getF1PerditeKwh)
+    public Double getF1PerditeKwh(String nomeBolletta, String mese, String anno) {
+        BollettaPod b = find("nomeBolletta = ?1 AND mese = ?2 AND anno = ?3",
+                nomeBolletta, mese, anno).firstResult();
+        return b != null ? Optional.ofNullable(b.getF1PerdKwh()).orElse(0.0) : 0.0;
+    }
+
+    public Double getF2PerditeKwh(String nomeBolletta, String mese, String anno) {
+        BollettaPod b = find("nomeBolletta = ?1 AND mese = ?2 AND anno = ?3",
+                nomeBolletta, mese, anno).firstResult();
+        return b != null ? Optional.ofNullable(b.getF2PerdKwh()).orElse(0.0) : 0.0;
+    }
+
+    public Double getF3PerditeKwh(String nomeBolletta, String mese, String anno) {
+        BollettaPod b = find("nomeBolletta = ?1 AND mese = ?2 AND anno = ?3",
+                nomeBolletta, mese, anno).firstResult();
+        return b != null ? Optional.ofNullable(b.getF3PerdKwh()).orElse(0.0) : 0.0;
     }
 }

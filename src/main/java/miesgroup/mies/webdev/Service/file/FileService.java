@@ -80,6 +80,7 @@ public class FileService {
     @Inject LetturaRicalcoloBolletta letturaRicalcoloBolletta;
     @Inject LetturaBolletta letturaBolletta;
     @Inject Lettura lettura;
+    @Inject verBollettaPodService verBollettaService;
 
     // ─────────────────────────────────────────────────────────────
     // DEBUG UTILS
@@ -165,6 +166,12 @@ public class FileService {
                     periodoRicalcolo,
                     periodicita
             );
+            try {
+                verBollettaService.verificaBolletteDaPeriodo(idPod, periodoTotale.getInizio(), periodoTotale.getFine());
+                System.out.println("[processaBollettaConRicalcolo] Verifica A2A completata per POD: " + idPod);
+            } catch (Exception e) {
+                System.err.println("[processaBollettaConRicalcolo] Errore verifica A2A: " + e.getMessage());
+            }
         } else if (tipo == TipoBolletta.RICALCOLO_SOSPETTO) {
             // Nessuna riga "RICALCOLI PERIODO", ma range > periodicità: gestisco come ricalcolo "soft"
             if (!mesiCorrentiEffettivi.isEmpty()) {
@@ -175,6 +182,12 @@ public class FileService {
                         null, // ricalcolo non confermato nel PDF
                         periodicita
                 );
+                try {
+                    verBollettaService.verificaBolletteDaPeriodo(idPod, periodoTotale.getInizio(), periodoTotale.getFine());
+                    System.out.println("[processaBollettaConRicalcolo] Verifica A2A completata per POD: " + idPod);
+                } catch (Exception e) {
+                    System.err.println("[processaBollettaConRicalcolo] Errore verifica A2A: " + e.getMessage());
+                }
             } else {
                 // Nessun indizio solido di ricalcolo: parsing normale
                 letturaBolletta.extractValuesFromXmlA2A(xmlData, idPod);

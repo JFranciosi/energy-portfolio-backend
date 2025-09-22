@@ -121,5 +121,71 @@ public class CostiPeriodiService {
         return false;
     }
 
+    /**
+     * Elimina un singolo periodo dinamico
+     */
+    @Transactional
+    public boolean deleteSinglePeriodo(Integer energyCostId, Integer monthStart, Integer userId) {
+        System.out.println("=== INIZIO deleteSinglePeriodo ===");
+        System.out.println("energyCostId: " + energyCostId);
+        System.out.println("monthStart: " + monthStart);
+        System.out.println("userId: " + userId);
+
+        try {
+            System.out.println("1. Verifico autorizzazione del cliente...");
+
+            // Verifica autorizzazione del cliente per questo energy cost
+            boolean isAuthorized = isClientAuthorizedForEnergyCost(userId, energyCostId);
+            System.out.println("1a. isClientAuthorizedForEnergyCost result: " + isAuthorized);
+
+            if (!isAuthorized) {
+                System.out.println("1b. ERRORE: Cliente non autorizzato per energyCostId: " + energyCostId);
+                return false;
+            }
+
+            System.out.println("2. Verifico esistenza del periodo...");
+
+            // Verifica che il periodo esista prima di eliminarlo
+            Optional<CostiPeriodi> periodo = costiPeriodiRepo.findByEnergyCostIdAndMonth(energyCostId, monthStart);
+            System.out.println("2a. Periodo trovato: " + periodo.isPresent());
+
+            if (!periodo.isPresent()) {
+                System.out.println("2b. ERRORE: Periodo non trovato");
+                return false;
+            }
+
+            CostiPeriodi periodoToDelete = periodo.get();
+            System.out.println("2c. ID del periodo da eliminare: " + periodoToDelete.getId());
+
+            System.out.println("3. Doppia verifica proprietà periodo...");
+            CostiEnergia costiEnergia = periodoToDelete.getCostiEnergia();
+
+            if (costiEnergia == null || !costiEnergia.getClientId().equals(userId)) {
+                System.out.println("3a. ERRORE: Il periodo non appartiene al cliente");
+                return false;
+            }
+
+            System.out.println("4. Procedo con l'eliminazione tramite query diretta...");
+
+            // USA LA QUERY DIRETTA invece di delete(entity)
+            long deletedRows = costiPeriodiRepo.deleteByEnergyCostIdAndMonth(energyCostId, monthStart);
+            System.out.println("4a. Righe eliminate: " + deletedRows);
+
+            if (deletedRows > 0) {
+                System.out.println("=== SUCCESSO: Periodo eliminato dal database ===");
+                return true;
+            } else {
+                System.out.println("4b. ERRORE: Nessuna riga eliminata");
+                return false;
+            }
+
+        } catch (Exception e) {
+            System.out.println("ECCEZIONE in deleteSinglePeriodo:");
+            System.out.println("Messaggio: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+
 }
 

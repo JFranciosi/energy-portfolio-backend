@@ -40,6 +40,7 @@ public class PodService {
     private final ClienteRepo clienteRepo;
     private final BudgetRepo budgetRepo;
     private final BollettaPodRepo bollettaRepo;
+
     @Inject
     private ClienteService clienteService;
 
@@ -76,11 +77,10 @@ public class PodService {
             DocumentBuilderFactory f = DocumentBuilderFactory.newInstance();
             DocumentBuilder b = f.newDocumentBuilder();
             Document doc = b.parse(new ByteArrayInputStream(xmlData));
-
             NodeList lines = doc.getElementsByTagName("Line");
 
             // ---------- Scansione linee ----------
-            for (int i = 0; i < lines.getLength() && !exists; i++) {
+            for (int i = 0; i < lines.getLength(); i++) {
                 Node node = lines.item(i);
                 if (node.getNodeType() != Node.ELEMENT_NODE) continue;
                 String txt = safeText(node);
@@ -93,10 +93,6 @@ public class PodService {
                         String extracted = extractPodFromCandidate(candidate);
                         if (!extracted.isEmpty()) {
                             idPod = extracted;
-                            if (podRepo.verificaSePodEsiste(idPod, idUtente) != null) {
-                                exists = true;
-                                return idPod;
-                            }
                             break;
                         }
                     }
@@ -134,6 +130,7 @@ public class PodService {
                         if (sb.length() > 0) sb.append(" ");
                         sb.append(part);
                     }
+
                     String[] sp = sb.toString().split(" - ");
                     if (sp.length == 2) {
                         sede = sp[0].trim();
@@ -149,11 +146,9 @@ public class PodService {
                     // Prova a prendere sulla stessa riga dopo ":" o "-"
                     String sameLine = txt;
                     String value = null;
-
                     // cerca separatori comuni
                     int colon = sameLine.indexOf(':');
-                    int dash  = sameLine.indexOf('-');
-
+                    int dash = sameLine.indexOf('-');
                     if (colon != -1 && colon + 1 < sameLine.length()) {
                         value = sameLine.substring(colon + 1).trim();
                     } else if (dash != -1 && dash + 1 < sameLine.length()) {
@@ -180,9 +175,7 @@ public class PodService {
                 // 6. Estrazione Decreto Energivori - classe di agevolazione (su 3 righe)
                 if (classeAgevolazione == null && containsIgnoreCase(txt, "Decreto Energivori") &&
                         containsIgnoreCase(txt, "classe di")) {
-
                     String value = null;
-
                     // Controlla se questa riga contiene l'inizio della dicitura
                     boolean isStartLine = containsIgnoreCase(txt, "Decreto Energivori") &&
                             containsIgnoreCase(txt, "classe di");
@@ -191,12 +184,10 @@ public class PodService {
                         // Cerca "agevolazione" nella riga successiva
                         if (i + 1 < lines.getLength()) {
                             String secondLine = safeText(lines.item(i + 1)).trim();
-
                             if (containsIgnoreCase(secondLine, "agevolazione")) {
                                 // Se trovato "agevolazione", il valore è nella terza riga
                                 if (i + 2 < lines.getLength()) {
                                     String thirdLine = safeText(lines.item(i + 2)).trim();
-
                                     if (!thirdLine.isEmpty()) {
                                         // Prende la prima parola della terza riga
                                         String[] parts = thirdLine.split("\\s+");
@@ -230,6 +221,7 @@ public class PodService {
             if (!idPod.isEmpty()) {
                 creaPod(vals, idUtente, idPod, fornitore, citta, cap, sede, periodFattur);
             }
+
         } catch (ParserConfigurationException | SAXException | IOException e) {
             e.printStackTrace();
         }
@@ -239,7 +231,6 @@ public class PodService {
 
     private String normalizeClasseAgevolazione(String raw) {
         if (raw == null) return null;
-
         String s = raw.trim().toUpperCase();
 
         // Mantieni "Val" come è
@@ -254,17 +245,16 @@ public class PodService {
         return raw.trim();
     }
 
-
     /** Normalizza la periodicità a una forma canonica (MENSILE, BIMESTRALE, TRIMESTRALE, QUADRIMESTRALE, SEMESTRALE, ANNUALE) quando riconosciuta. */
     private String normalizePeriodicita(String raw) {
         if (raw == null) return null;
         String s = stripAccents(raw).trim().toUpperCase();
-        if (s.startsWith("MEN"))  return "MENSILE";
-        if (s.startsWith("BIM"))  return "BIMESTRALE";
-        if (s.startsWith("TRI"))  return "TRIMESTRALE";
-        if (s.startsWith("QUA"))  return "QUADRIMESTRALE";
-        if (s.startsWith("SEM"))  return "SEMESTRALE";
-        if (s.startsWith("ANN"))  return "ANNUALE";
+        if (s.startsWith("MEN")) return "MENSILE";
+        if (s.startsWith("BIM")) return "BIMESTRALE";
+        if (s.startsWith("TRI")) return "TRIMESTRALE";
+        if (s.startsWith("QUA")) return "QUADRIMESTRALE";
+        if (s.startsWith("SEM")) return "SEMESTRALE";
+        if (s.startsWith("ANN")) return "ANNUALE";
         return raw.trim(); // lasciamo com'è se non riconosciuta
     }
 
@@ -274,7 +264,6 @@ public class PodService {
         String norm = java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD);
         return norm.replaceAll("\\p{M}+", "");
     }
-
 
     /* ====================== UTILITIES (no regex per il POD) ====================== */
 
@@ -289,16 +278,15 @@ public class PodService {
                 haystack.toLowerCase(Locale.ITALY).contains(needle.toLowerCase(Locale.ITALY));
     }
 
-
     /**
      * Estrae un possibile POD dalla riga candidata SENZA regex:
      * - rimuove spazi
      * - tokenizza solo su caratteri alfanumerici (A-Z, 0-9)
      * - prende il primo token che:
-     *      - inizia con "IT"
-     *      - ha almeno 1 cifra dopo "IT"
-     *      - lunghezza compresa tra 12 e 16
-     *      - contiene più cifre che lettere dopo "IT" (per evitare "ITORE..." ecc.)
+     * - inizia con "IT"
+     * - ha almeno 1 cifra dopo "IT"
+     * - lunghezza compresa tra 12 e 16
+     * - contiene più cifre che lettere dopo "IT" (per evitare "ITORE..." ecc.)
      */
     private static String extractPodFromCandidate(String line) {
         if (line == null) return "";
@@ -333,34 +321,59 @@ public class PodService {
                 if (c >= '0' && c <= '9') { hasDigit = true; digits++; }
                 else if (c >= 'A' && c <= 'Z') { letters++; }
             }
+
             if (!hasDigit) continue;
             if (digits < letters) continue; // più numerico che alfabetico
 
             // OK, questo è il candidato POD
             return tok;
         }
+
         return "";
     }
-
 
     @Transactional
     public void creaPod(List<Double> vals, int idUtente, String idPod,
                         String fornitore, String nazione, String cap, String sede, String PeriodFattur) {
         Cliente c = clienteRepo.findById(idUtente);
-        Pod p = new Pod();
-        p.setUtente(c);
-        p.setId(idPod);
-        p.setFornitore(fornitore);
-        p.setTensioneAlimentazione(vals.size() > 0 ? vals.get(0) : 0.0);
-        p.setPotenzaImpegnata(vals.size() > 1 ? vals.get(1) : 0.0);
-        p.setPotenzaDisponibile(vals.size() > 2 ? vals.get(2) : 0.0);
-        p.setSede(sede);
-        p.setNazione(nazione);
-        p.setCap(cap);
-        p.setPeriodFattur(PeriodFattur);
-        double t = p.getTensioneAlimentazione();
-        p.setTipoTensione(t <= 1000 ? "Bassa" : t <= 35000 ? "Media" : "Alta");
-        podRepo.persist(p);
+
+        // Controlla se il POD esiste già
+        Pod existingPod = podRepo.findById(idPod);
+
+        if (existingPod != null) {
+            // Il POD esiste già, aggiorna i campi
+            existingPod.setFornitore(fornitore);
+            existingPod.setTensioneAlimentazione(vals.size() > 0 ? vals.get(0) : existingPod.getTensioneAlimentazione());
+            existingPod.setPotenzaImpegnata(vals.size() > 1 ? vals.get(1) : existingPod.getPotenzaImpegnata());
+            existingPod.setPotenzaDisponibile(vals.size() > 2 ? vals.get(2) : existingPod.getPotenzaDisponibile());
+            existingPod.setSede(sede);
+            existingPod.setNazione(nazione);
+            existingPod.setCap(cap);
+            existingPod.setPeriodFattur(PeriodFattur);
+
+            double t = existingPod.getTensioneAlimentazione();
+            existingPod.setTipoTensione(t <= 1000 ? "Bassa" : t <= 35000 ? "Media" : "Alta");
+
+            // Non serve fare persist perché è già un'entità gestita
+        } else {
+            // Il POD non esiste, creane uno nuovo
+            Pod p = new Pod();
+            p.setUtente(c);
+            p.setId(idPod);
+            p.setFornitore(fornitore);
+            p.setTensioneAlimentazione(vals.size() > 0 ? vals.get(0) : 0.0);
+            p.setPotenzaImpegnata(vals.size() > 1 ? vals.get(1) : 0.0);
+            p.setPotenzaDisponibile(vals.size() > 2 ? vals.get(2) : 0.0);
+            p.setSede(sede);
+            p.setNazione(nazione);
+            p.setCap(cap);
+            p.setPeriodFattur(PeriodFattur);
+
+            double t = p.getTensioneAlimentazione();
+            p.setTipoTensione(t <= 1000 ? "Bassa" : t <= 35000 ? "Media" : "Alta");
+
+            podRepo.persist(p);
+        }
     }
 
     @Transactional
@@ -414,9 +427,11 @@ public class PodService {
     public List<Map<String, Object>> getPrezziEnergiaTutti(int anno, int sessione) {
         List<Pod> pods = findPodByIdUser(sessione);
         List<Map<String, Object>> out = new ArrayList<>();
+
         for (int m = 1; m <= 12; m++) {
             double sumP = 0, sumO = 0;
             int cnt = 0;
+
             for (Pod p : pods) {
                 List<BollettaPod> bl = bollettaRepo.list(
                         "idPod = ?1 AND anno = ?2 AND mese = ?3",
@@ -430,16 +445,19 @@ public class PodService {
                     }
                 }
             }
+
             if (cnt > 0) {
                 sumP /= cnt;
                 sumO /= cnt;
             }
+
             Map<String, Object> mappa = new HashMap<>();
             mappa.put("mese", m);
             mappa.put("prezzoEnergia", sumP);
             mappa.put("oneri", sumO);
             out.add(mappa);
         }
+
         return out;
     }
 }

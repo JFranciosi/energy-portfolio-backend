@@ -7,6 +7,7 @@ import jakarta.persistence.PersistenceContext;
 import miesgroup.mies.webdev.Model.bolletta.BollettaPod;
 import miesgroup.mies.webdev.Model.bolletta.verBollettaPod;
 
+import java.util.Optional;
 import java.util.function.Consumer;
 
 @ApplicationScoped
@@ -21,6 +22,13 @@ public class verBollettaPodRepo implements PanacheRepositoryBase<verBollettaPod,
 
     public verBollettaPod findByBollettaId(BollettaPod bollettaId) {
         return find("bollettaId", bollettaId).firstResult();
+    }
+
+    /**
+     * Trova un record per nome bolletta
+     */
+    public Optional<verBollettaPod> findByNomeBolletta(String nomeBolletta) {
+        return find("nomeBolletta", nomeBolletta).firstResultOptional();
     }
 
     public void deleteByBollettaId(Integer bollettaId) {

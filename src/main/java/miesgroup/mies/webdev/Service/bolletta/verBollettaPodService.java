@@ -1,18 +1,17 @@
 package miesgroup.mies.webdev.Service.bolletta;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import miesgroup.mies.webdev.Model.bolletta.BollettaPod;
-import miesgroup.mies.webdev.Model.bolletta.Pod;
-import miesgroup.mies.webdev.Model.bolletta.verBollettaPod;
-import miesgroup.mies.webdev.Repository.bolletta.BollettaPodRepo;
-import miesgroup.mies.webdev.Repository.bolletta.PodRepo;
-import miesgroup.mies.webdev.Repository.bolletta.dettaglioCostoRepo;
-import miesgroup.mies.webdev.Repository.bolletta.verBollettaPodRepo;
+import miesgroup.mies.webdev.Model.bolletta.*;
+import miesgroup.mies.webdev.Model.cliente.Cliente;
+import miesgroup.mies.webdev.Repository.bolletta.*;
 import miesgroup.mies.webdev.Service.cliente.ClienteService;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -24,6 +23,20 @@ public class verBollettaPodService {
     private final ClienteService clienteService;
     private final PodRepo podRepo;
     private final verBollettaPodRepo verBollettaPodRepo;
+    // Aggiungi queste injection nella classe verBollettaPodService
+
+    @Inject
+    CostiEnergiaService costiEnergiaService;
+
+    @Inject
+    CostiPeriodiService costiPeriodiService;
+
+    @Inject
+    CostoEnergiaRepo costoEnergiaRepo;
+
+    @Inject
+    CostiPeriodiRepo costiPeriodiRepo;
+
 
 
     public verBollettaPodService(BollettaPodRepo bollettaRepo, ClienteService clienteService, dettaglioCostoRepo dettaglioCostoRepo, PodRepo podRepo, verBollettaPodRepo verBollettaPodRepo) {
@@ -373,13 +386,114 @@ public class verBollettaPodService {
             verBollettaPod saved = verBollettaPodRepo.upsertAllByBollettaId(dto);
             System.out.println("[A2AVerifica] upsert DONE. Saved id=" + saved.getId());
 
+            // Calcola i costi dell'energia per questa bolletta
+            calcolaCostiEnergia(b, idPod);
+
         } catch (Exception e) {
             System.err.println("❌ Errore in A2AVerifica: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
+    @Transactional
+    public void verificaBolletteDaPeriodo(String idPod, Date periodoInizio, Date periodoFine) {
+        try {
+            System.out.println("[verificaBolletteDaPeriodo] START verifica bollette per POD: " + idPod);
+            System.out.println("[verificaBolletteDaPeriodo] Periodo: " + periodoInizio + " - " + periodoFine);
 
+            Calendar calInizio = Calendar.getInstance();
+            calInizio.setTime(periodoInizio);
+
+            Calendar calFine = Calendar.getInstance();
+            calFine.setTime(periodoFine);
+
+            int verificateSuccesso = 0;
+            int verificateFallite = 0;
+            int nonTrovate = 0;
+
+            Calendar corrente = (Calendar) calInizio.clone();
+
+            while (corrente.compareTo(calFine) <= 0) {
+                // Converti il numero del mese (0-11) nel nome italiano
+                int numeroMese = corrente.get(Calendar.MONTH) + 1; // Calendar.MONTH è 0-based
+                String meseItaliano = convertMeseNumeroToIta(numeroMese);
+                String anno = String.valueOf(corrente.get(Calendar.YEAR));
+
+                System.out.println("[verificaBolletteDaPeriodo] Elaboro mese: " + meseItaliano + " " + anno);
+
+                try {
+                    // Cerca bollette usando il nome del mese in italiano
+                    List<BollettaPod> bolletteMese = bollettaPodRepo.findByIdPodAndMeseAndAnno(idPod, meseItaliano, anno);
+
+                    if (bolletteMese.isEmpty()) {
+                        nonTrovate++;
+                        System.out.println("[verificaBolletteDaPeriodo] Nessuna bolletta trovata per POD: "
+                                + idPod + " mese: " + meseItaliano + " anno: " + anno);
+                    } else {
+                        System.out.println("[verificaBolletteDaPeriodo] Trovate " + bolletteMese.size()
+                                + " bollette per " + meseItaliano + " " + anno);
+
+                        for (BollettaPod bolletta : bolletteMese) {
+                            try {
+                                System.out.println("[verificaBolletteDaPeriodo] Verifico bolletta: "
+                                        + bolletta.getNomeBolletta() + " - ID: " + bolletta.getId());
+
+                                A2AVerifica(bolletta);
+
+                                verificateSuccesso++;
+                                System.out.println("[verificaBolletteDaPeriodo] Bolletta "
+                                        + bolletta.getNomeBolletta() + " verificata con successo");
+
+                            } catch (Exception e) {
+                                verificateFallite++;
+                                System.err.println("[verificaBolletteDaPeriodo] Errore verifica bolletta ID: "
+                                        + bolletta.getId() + " - " + e.getMessage());
+                                e.printStackTrace();
+                            }
+                        }
+                    }
+
+                } catch (Exception e) {
+                    System.err.println("[verificaBolletteDaPeriodo] Errore ricerca bollette per "
+                            + meseItaliano + " " + anno + ": " + e.getMessage());
+                    e.printStackTrace();
+                }
+
+                // Passa al mese successivo
+                corrente.add(Calendar.MONTH, 1);
+            }
+
+            System.out.println("[verificaBolletteDaPeriodo] RIEPILOGO FINALE:");
+            System.out.println("[verificaBolletteDaPeriodo] - Verificate con successo: " + verificateSuccesso);
+            System.out.println("[verificaBolletteDaPeriodo] - Verifiche fallite: " + verificateFallite);
+            System.out.println("[verificaBolletteDaPeriodo] - Mesi senza bollette: " + nonTrovate);
+            System.out.println("[verificaBolletteDaPeriodo] END verifica bollette per POD: " + idPod);
+
+        } catch (Exception e) {
+            System.err.println("[verificaBolletteDaPeriodo] Errore generale: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
+    }
+
+    private String convertMeseNumeroToIta(int numeroMese) {
+        switch (numeroMese) {
+            case 1: return "gennaio";
+            case 2: return "febbraio";
+            case 3: return "marzo";
+            case 4: return "aprile";
+            case 5: return "maggio";
+            case 6: return "giugno";
+            case 7: return "luglio";
+            case 8: return "agosto";
+            case 9: return "settembre";
+            case 10: return "ottobre";
+            case 11: return "novembre";
+            case 12: return "dicembre";
+            default:
+                throw new IllegalArgumentException("Numero mese non valido: " + numeroMese);
+        }
+    }
 
     public int convertMeseInt(String mese){
         int m = switch (mese.toLowerCase()) {
@@ -399,6 +513,7 @@ public class verBollettaPodService {
         };
         return m;
     }
+
     public static double arrotonda(double valore) {
         return BigDecimal.valueOf(valore).setScale(2, RoundingMode.HALF_UP).doubleValue();
     }
@@ -411,4 +526,403 @@ public class verBollettaPodService {
     public List<BollettaPod> findBollettaPodByPods(List<Pod> pods) {
         return bollettaPodRepo.findBollettaPodByPods(pods);
     }
+
+    // Aggiungi questo metodo nel verBollettaPodService.java
+
+    /**
+     * Calcola i costi dell'energia per una bolletta e salva i risultati in ver_bolletta_pod
+     */
+    @Transactional
+    public void calcolaCostiEnergia(BollettaPod bollettaPod, String idPod) {
+        try {
+            // 1. Recupera il cliente dal POD
+            Cliente cliente = clienteService.getClienteByPod(idPod);
+            if (cliente == null) {
+                System.err.println("Cliente non trovato per POD: " + idPod);
+                return;
+            }
+
+            Integer clientId = cliente.getId();
+            Integer annoInt = Integer.parseInt(bollettaPod.getAnno());
+            Integer meseInt = convertMeseInt(bollettaPod.getMese());
+
+            // 2. Recupera i dati kWh DIRETTAMENTE dall'oggetto BollettaPod (NON dal DB!)
+            Double f0Kwh = Optional.ofNullable(bollettaPod.getF0Kwh()).orElse(0.0);
+            Double f1Kwh = Optional.ofNullable(bollettaPod.getF1Kwh()).orElse(0.0);
+            Double f2Kwh = Optional.ofNullable(bollettaPod.getF2Kwh()).orElse(0.0);
+            Double f3Kwh = Optional.ofNullable(bollettaPod.getF3Kwh()).orElse(0.0);
+            Double f1PerditeKwh = Optional.ofNullable(bollettaPod.getF1PerdKwh()).orElse(0.0);
+            Double f2PerditeKwh = Optional.ofNullable(bollettaPod.getF2PerdKwh()).orElse(0.0);
+            Double f3PerditeKwh = Optional.ofNullable(bollettaPod.getF3PerdKwh()).orElse(0.0);
+
+            System.out.println("✅ Dati kWh recuperati direttamente dall'oggetto BollettaPod:");
+            System.out.println("f0Kwh: " + f0Kwh);
+            System.out.println("f1Kwh: " + f1Kwh + ", f1PerditeKwh: " + f1PerditeKwh);
+            System.out.println("f2Kwh: " + f2Kwh + ", f2PerditeKwh: " + f2PerditeKwh);
+            System.out.println("f3Kwh: " + f3Kwh + ", f3PerditeKwh: " + f3PerditeKwh);
+
+            // 3. Continua con il resto della logica...
+            Optional<CostiEnergia> costiEnergiaOpt = costoEnergiaRepo.findByClientIdAndYear(clientId, annoInt);
+
+            if (!costiEnergiaOpt.isPresent()) {
+                System.err.println("Costi energia non trovati per cliente: " + clientId + ", anno: " + annoInt);
+                return;
+            }
+
+            CostiEnergia costiEnergia = costiEnergiaOpt.get();
+            String tipoPrezzo = costiEnergia.getTipoPrezzo();
+            String tipoTariffa = costiEnergia.getTipoTariffa();
+
+            // 4. Calcola i costi in base al tipo di contratto
+            CostoCalcolatoResult risultato = calcolaCostoByTipo(
+                    tipoPrezzo, tipoTariffa, costiEnergia, meseInt, annoInt,
+                    f0Kwh, f1Kwh, f2Kwh, f3Kwh, f1PerditeKwh, f2PerditeKwh, f3PerditeKwh
+            );
+
+            // 5. Salva i risultati in ver_bolletta_pod
+            salvaRisultatiCalcolo(bollettaPod.getNomeBolletta(), String.valueOf(meseInt),
+                    bollettaPod.getAnno(), risultato,
+                    f0Kwh, f1Kwh, f2Kwh, f3Kwh, f1PerditeKwh, f2PerditeKwh, f3PerditeKwh);
+
+
+            // Nel verBollettaPodService, nel metodo calcolaCostiEnergia, aggiungi:
+
+            System.out.println("=== DEBUG CALCOLO COSTI ===");
+            System.out.println("clientId: " + clientId + ", anno: " + annoInt + ", mese: " + meseInt);
+            System.out.println("f0Kwh: " + f0Kwh);
+            System.out.println("f1Kwh: " + f1Kwh + ", f1PerditeKwh: " + f1PerditeKwh);
+            System.out.println("f2Kwh: " + f2Kwh + ", f2PerditeKwh: " + f2PerditeKwh);
+            System.out.println("f3Kwh: " + f3Kwh + ", f3PerditeKwh: " + f3PerditeKwh);
+            System.out.println("CostiEnergia: " + costiEnergia);
+            System.out.println("tipoPrezzo: " + tipoPrezzo + ", tipoTariffa: " + tipoTariffa);
+            System.out.println("===============================");
+            System.out.println("=== DEBUG COSTI ENERGIA DETTAGLIATO ===");
+            System.out.println("CostiEnergia found: " + (costiEnergia != null));
+            if (costiEnergia != null) {
+                System.out.println("TipoPrezzo: " + costiEnergia.getTipoPrezzo());
+                System.out.println("TipoTariffa: " + costiEnergia.getTipoTariffa());
+                System.out.println("CostF1: " + costiEnergia.getCostF1());
+                System.out.println("CostF2: " + costiEnergia.getCostF2());
+                System.out.println("CostF3: " + costiEnergia.getCostF3());
+                System.out.println("PercentageVariable: " + costiEnergia.getPercentageVariable());
+            }
+
+
+        } catch (Exception e) {
+            System.err.println("Errore nel calcolo costi energia: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Calcola i costi in base al tipo di contratto
+     */
+    private CostoCalcolatoResult calcolaCostoByTipo(String tipoPrezzo, String tipoTariffa,
+                                                    CostiEnergia costiEnergia, Integer mese, Integer anno,
+                                                    Double f0Kwh, Double f1Kwh, Double f2Kwh, Double f3Kwh,
+                                                    Double f1PerditeKwh, Double f2PerditeKwh, Double f3PerditeKwh) {
+
+        CostoCalcolatoResult result = new CostoCalcolatoResult();
+
+        switch (tipoPrezzo.toLowerCase()) {
+            case "fisso":
+                result = calcolaCostoFisso(tipoTariffa, costiEnergia,
+                        f0Kwh, f1Kwh, f2Kwh, f3Kwh, f1PerditeKwh, f2PerditeKwh, f3PerditeKwh);
+                break;
+
+            case "indicizzato":
+                result = calcolaCostoIndicizzato(tipoTariffa, costiEnergia, mese, anno,
+                        f0Kwh, f1Kwh, f2Kwh, f3Kwh, f1PerditeKwh, f2PerditeKwh, f3PerditeKwh);
+                break;
+
+            case "misto":
+                result = calcolaCostoMisto(tipoTariffa, costiEnergia, mese, anno,
+                        f0Kwh, f1Kwh, f2Kwh, f3Kwh, f1PerditeKwh, f2PerditeKwh, f3PerditeKwh);
+                break;
+
+            case "dinamico":
+                result = calcolaCostoDinamico(costiEnergia.getId(), mese,
+                        f0Kwh, f1Kwh, f2Kwh, f3Kwh, f1PerditeKwh, f2PerditeKwh, f3PerditeKwh);
+                break;
+
+            default:
+                System.err.println("Tipo prezzo non riconosciuto: " + tipoPrezzo);
+                break;
+        }
+
+        return result;
+    }
+
+    /**
+     * Calcola costo per contratto FISSO
+     */
+    private CostoCalcolatoResult calcolaCostoFisso(String tipoTariffa, CostiEnergia costiEnergia,
+                                                   Double f0Kwh, Double f1Kwh, Double f2Kwh, Double f3Kwh,
+                                                   Double f1PerditeKwh, Double f2PerditeKwh, Double f3PerditeKwh) {
+
+        CostoCalcolatoResult result = new CostoCalcolatoResult();
+
+        switch (tipoTariffa.toLowerCase()) {
+            case "monoraria":
+                // Solo F0
+                BigDecimal costF0 = costiEnergia.getCostF0() != null ? costiEnergia.getCostF0() : BigDecimal.ZERO;
+                result.f0Euro = costF0.multiply(BigDecimal.valueOf(f0Kwh != null ? f0Kwh : 0.0)).doubleValue();
+                break;
+
+            case "bioraria":
+                // F1 e F2 (F3 = F2)
+                BigDecimal costF1 = costiEnergia.getCostF1() != null ? costiEnergia.getCostF1() : BigDecimal.ZERO;
+                BigDecimal costF2 = costiEnergia.getCostF2() != null ? costiEnergia.getCostF2() : BigDecimal.ZERO;
+
+                result.f1Euro = costF1.multiply(BigDecimal.valueOf(f1Kwh != null ? f1Kwh : 0.0)).doubleValue();
+                result.f1PerdEuro = costF1.multiply(BigDecimal.valueOf(f1PerditeKwh != null ? f1PerditeKwh : 0.0)).doubleValue();
+
+                result.f2Euro = costF2.multiply(BigDecimal.valueOf(f2Kwh != null ? f2Kwh : 0.0)).doubleValue();
+                result.f2PerdEuro = costF2.multiply(BigDecimal.valueOf(f2PerditeKwh != null ? f2PerditeKwh : 0.0)).doubleValue();
+
+                // F3 = F2 per bioraria
+                result.f3Euro = costF2.multiply(BigDecimal.valueOf(f3Kwh != null ? f3Kwh : 0.0)).doubleValue();
+                result.f3PerdEuro = costF2.multiply(BigDecimal.valueOf(f3PerditeKwh != null ? f3PerditeKwh : 0.0)).doubleValue();
+                break;
+
+            case "trioraria":
+                // F1, F2, F3
+                BigDecimal costF1Tri = costiEnergia.getCostF1() != null ? costiEnergia.getCostF1() : BigDecimal.ZERO;
+                BigDecimal costF2Tri = costiEnergia.getCostF2() != null ? costiEnergia.getCostF2() : BigDecimal.ZERO;
+                BigDecimal costF3Tri = costiEnergia.getCostF3() != null ? costiEnergia.getCostF3() : BigDecimal.ZERO;
+
+                result.f1Euro = costF1Tri.multiply(BigDecimal.valueOf(f1Kwh != null ? f1Kwh : 0.0)).doubleValue();
+                result.f1PerdEuro = costF1Tri.multiply(BigDecimal.valueOf(f1PerditeKwh != null ? f1PerditeKwh : 0.0)).doubleValue();
+
+                result.f2Euro = costF2Tri.multiply(BigDecimal.valueOf(f2Kwh != null ? f2Kwh : 0.0)).doubleValue();
+                result.f2PerdEuro = costF2Tri.multiply(BigDecimal.valueOf(f2PerditeKwh != null ? f2PerditeKwh : 0.0)).doubleValue();
+
+                result.f3Euro = costF3Tri.multiply(BigDecimal.valueOf(f3Kwh != null ? f3Kwh : 0.0)).doubleValue();
+                result.f3PerdEuro = costF3Tri.multiply(BigDecimal.valueOf(f3PerditeKwh != null ? f3PerditeKwh : 0.0)).doubleValue();
+                break;
+        }
+
+        return result;
+    }
+
+    /**
+     * Calcola costo per contratto INDICIZZATO (GME + spread)
+     */
+    private CostoCalcolatoResult calcolaCostoIndicizzato(String tipoTariffa, CostiEnergia costiEnergia, Integer mese, Integer anno,
+                                                         Double f0Kwh, Double f1Kwh, Double f2Kwh, Double f3Kwh,
+                                                         Double f1PerditeKwh, Double f2PerditeKwh, Double f3PerditeKwh) {
+
+        CostoCalcolatoResult result = new CostoCalcolatoResult();
+
+        // TODO: Implementare recupero GME quando disponibile
+        Double gmeValue = getGMEValue(mese, anno); // Metodo da implementare in futuro
+
+        BigDecimal spreadF1 = costiEnergia.getSpreadF1() != null ? costiEnergia.getSpreadF1() : BigDecimal.ZERO;
+        BigDecimal spreadF2 = costiEnergia.getSpreadF2() != null ? costiEnergia.getSpreadF2() : BigDecimal.ZERO;
+        BigDecimal spreadF3 = costiEnergia.getSpreadF3() != null ? costiEnergia.getSpreadF3() : BigDecimal.ZERO;
+
+        BigDecimal gme = BigDecimal.valueOf(gmeValue);
+
+        // Calcola: (GME + spread) * kWh
+        BigDecimal prezzoF1 = gme.add(spreadF1);
+        BigDecimal prezzoF2 = gme.add(spreadF2);
+        BigDecimal prezzoF3 = gme.add(spreadF3);
+
+        result.f1Euro = prezzoF1.multiply(BigDecimal.valueOf(f1Kwh != null ? f1Kwh : 0.0)).doubleValue();
+        result.f1PerdEuro = prezzoF1.multiply(BigDecimal.valueOf(f1PerditeKwh != null ? f1PerditeKwh : 0.0)).doubleValue();
+
+        result.f2Euro = prezzoF2.multiply(BigDecimal.valueOf(f2Kwh != null ? f2Kwh : 0.0)).doubleValue();
+        result.f2PerdEuro = prezzoF2.multiply(BigDecimal.valueOf(f2PerditeKwh != null ? f2PerditeKwh : 0.0)).doubleValue();
+
+        result.f3Euro = prezzoF3.multiply(BigDecimal.valueOf(f3Kwh != null ? f3Kwh : 0.0)).doubleValue();
+        result.f3PerdEuro = prezzoF3.multiply(BigDecimal.valueOf(f3PerditeKwh != null ? f3PerditeKwh : 0.0)).doubleValue();
+
+        return result;
+    }
+
+    /**
+     * Calcola costo per contratto MISTO (parte fissa + parte variabile a GME)
+     */
+    private CostoCalcolatoResult calcolaCostoMisto(String tipoTariffa, CostiEnergia costiEnergia, Integer mese, Integer anno,
+                                                   Double f0Kwh, Double f1Kwh, Double f2Kwh, Double f3Kwh,
+                                                   Double f1PerditeKwh, Double f2PerditeKwh, Double f3PerditeKwh) {
+
+        CostoCalcolatoResult result = new CostoCalcolatoResult();
+
+        //Double percentageVariable = costiEnergia.getPercentageVariable() != null ?costiEnergia.getPercentageVariable().doubleValue() : 0.0;
+        //Double percentageFixed = 100.0 - percentageVariable;
+
+        //BigDecimal percVar = BigDecimal.valueOf(percentageVariable / 100.0);
+        //BigDecimal percFixed = BigDecimal.valueOf(percentageFixed / 100.0);
+
+        Double gmeValue = getGMEValue(mese, anno);
+        BigDecimal gme = BigDecimal.valueOf(gmeValue);
+
+        BigDecimal costF1 = costiEnergia.getCostF1() != null ? costiEnergia.getCostF1() : BigDecimal.ZERO;
+        BigDecimal costF2 = costiEnergia.getCostF2() != null ? costiEnergia.getCostF2() : BigDecimal.ZERO;
+        BigDecimal costF3 = costiEnergia.getCostF3() != null ? costiEnergia.getCostF3() : BigDecimal.ZERO;
+
+        // Calcola: (costo_fisso * perc_fissa + GME * perc_variabile) * kWh
+
+        result.f0Euro = gme.multiply(BigDecimal.valueOf(f0Kwh != null ? f0Kwh : 0.0)).doubleValue();
+
+        result.f1Euro = costF1.multiply(BigDecimal.valueOf(f1Kwh != null ? f1Kwh : 0.0)).doubleValue();
+        result.f1PerdEuro = costF1.multiply(BigDecimal.valueOf(f1PerditeKwh != null ? f1PerditeKwh : 0.0)).doubleValue();
+
+        result.f2Euro = costF2.multiply(BigDecimal.valueOf(f2Kwh != null ? f2Kwh : 0.0)).doubleValue();
+        result.f2PerdEuro = costF2.multiply(BigDecimal.valueOf(f2PerditeKwh != null ? f2PerditeKwh : 0.0)).doubleValue();
+
+        result.f3Euro = costF3.multiply(BigDecimal.valueOf(f3Kwh != null ? f3Kwh : 0.0)).doubleValue();
+        result.f3PerdEuro = costF3.multiply(BigDecimal.valueOf(f3PerditeKwh != null ? f3PerditeKwh : 0.0)).doubleValue();
+
+        return result;
+    }
+
+    /**
+     * Calcola costo per contratto DINAMICO (da costi_periodi)
+     */
+    private CostoCalcolatoResult calcolaCostoDinamico(Integer energyCostId, Integer mese,
+                                                      Double f0Kwh, Double f1Kwh, Double f2Kwh, Double f3Kwh,
+                                                      Double f1PerditeKwh, Double f2PerditeKwh, Double f3PerditeKwh) {
+
+        CostoCalcolatoResult result = new CostoCalcolatoResult();
+
+        // Trova il periodo attivo per il mese corrente
+        Optional<CostiPeriodi> periodoOpt = costiPeriodiRepo.findActiveByEnergyIdAndMonth(energyCostId, mese);
+        if (!periodoOpt.isPresent()) {
+            System.err.println("Periodo dinamico non trovato per energyCostId: " + energyCostId + ", mese: " + mese);
+            return result;
+        }
+
+        CostiPeriodi periodo = periodoOpt.get();
+
+        BigDecimal costF1 = periodo.getCostF1();
+        BigDecimal costF2 = periodo.getCostF2();
+        BigDecimal costF3 = periodo.getCostF3();
+
+        result.f1Euro = costF1.multiply(BigDecimal.valueOf(f1Kwh != null ? f1Kwh : 0.0)).doubleValue();
+        result.f1PerdEuro = costF1.multiply(BigDecimal.valueOf(f1PerditeKwh != null ? f1PerditeKwh : 0.0)).doubleValue();
+
+        result.f2Euro = costF2.multiply(BigDecimal.valueOf(f2Kwh != null ? f2Kwh : 0.0)).doubleValue();
+        result.f2PerdEuro = costF2.multiply(BigDecimal.valueOf(f2PerditeKwh != null ? f2PerditeKwh : 0.0)).doubleValue();
+
+        result.f3Euro = costF3.multiply(BigDecimal.valueOf(f3Kwh != null ? f3Kwh : 0.0)).doubleValue();
+        result.f3PerdEuro = costF3.multiply(BigDecimal.valueOf(f3PerditeKwh != null ? f3PerditeKwh : 0.0)).doubleValue();
+
+        return result;
+    }
+
+    /**
+     * Placeholder per GME - da implementare in futuro
+     */
+    private Double getGMEValue(int month, int year) {
+        String key = "$year-$month";
+
+        switch (key) {
+            // 2023 Data
+            case "2023-1": return 0.174;
+            case "2023-2": return 0.161;
+            case "2023-3": return 0.136;
+            case "2023-4": return 0.135;
+            case "2023-5": return 0.106;
+            case "2023-6": return 0.106;
+            case "2023-7": return 0.112;
+            case "2023-8": return 0.112;
+            case "2023-9": return 0.116;
+            case "2023-10": return 0.134;
+            case "2023-11": return 0.122;
+            case "2023-12": return 0.116;
+
+            // 2024 Data
+            case "2024-1": return 0.099;
+            case "2024-2": return 0.088;
+            case "2024-3": return 0.089;
+            case "2024-4": return 0.087;
+            case "2024-5": return 0.095;
+            case "2024-6": return 0.103;
+            case "2024-7": return 0.112;
+            case "2024-8": return 0.128;
+            case "2024-9": return 0.117;
+            case "2024-10": return 0.117;
+            case "2024-11": return 0.131;
+            case "2024-12": return 0.135;
+
+            // 2025 Data
+            case "2025-1": return 0.143;
+            case "2025-2": return 0.150;
+            case "2025-3": return 0.121;
+            case "2025-4": return 0.100;
+            case "2025-5": return 0.094;
+            case "2025-6": return 0.112;
+            case "2025-7": return 0.113;
+            case "2025-8": return 0.109;
+
+            // Default fallback per mesi/anni non disponibili
+            default: return 0.08; // Valore di default
+        }
+    }
+
+
+    /**
+     * Salva i risultati del calcolo in ver_bolletta_pod
+     */
+    @Transactional
+    public void salvaRisultatiCalcolo(String nomeBolletta, String mese, String anno,
+                                       CostoCalcolatoResult risultato,
+                                       Double f0Kwh, Double f1Kwh, Double f2Kwh, Double f3Kwh,
+                                       Double f1PerditeKwh, Double f2PerditeKwh, Double f3PerditeKwh) {
+
+        // Trova o crea il record in ver_bolletta_pod
+        Optional<verBollettaPod> existingOpt = verBollettaPodRepo.findByNomeBolletta(nomeBolletta);
+
+        verBollettaPod record;
+        if (existingOpt.isPresent()) {
+            record = existingOpt.get();
+        } else {
+            // Crea nuovo record se non esiste
+            record = new verBollettaPod();
+            record.setNomeBolletta(nomeBolletta);
+
+            // Trova il bolletta_id dalla tabella bolletta_pod
+            Optional<BollettaPod> bollettaOpt = bollettaPodRepo.findOne(nomeBolletta, mese, anno);
+            if (bollettaOpt.isPresent()) {
+                record.setBollettaId(bollettaOpt.get());
+            }
+        }
+
+        // Imposta i valori calcolati
+        record.setF0Euro(risultato.f0Euro);
+        record.setF0Kwh(f0Kwh);
+        record.setF1Euro(risultato.f1Euro);
+        record.setF1Kwh(f1Kwh);
+        record.setF1PerdEuro(risultato.f1PerdEuro);
+        record.setF1PerdKwh(f1PerditeKwh);
+        record.setF2Euro(risultato.f2Euro);
+        record.setF2Kwh(f2Kwh);
+        record.setF2PerdEuro(risultato.f2PerdEuro);
+        record.setF2PerdKwh(f2PerditeKwh);
+        record.setF3Euro(risultato.f3Euro);
+        record.setF3Kwh(f3Kwh);
+        record.setF3PerdEuro(risultato.f3PerdEuro);
+        record.setF3PerdKwh(f3PerditeKwh);
+
+        // Salva il record
+        verBollettaPodRepo.persist(record);
+
+        System.out.println("Costi energia salvati per bolletta: " + nomeBolletta);
+    }
+
+    /**
+     * Classe di supporto per contenere i risultati del calcolo
+     */
+    private static class CostoCalcolatoResult {
+        public Double f0Euro = 0.0;
+        public Double f1Euro = 0.0;
+        public Double f1PerdEuro = 0.0;
+        public Double f2Euro = 0.0;
+        public Double f2PerdEuro = 0.0;
+        public Double f3Euro = 0.0;
+        public Double f3PerdEuro = 0.0;
+    }
+
 }

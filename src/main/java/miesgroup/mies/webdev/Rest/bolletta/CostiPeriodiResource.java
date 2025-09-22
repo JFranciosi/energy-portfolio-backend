@@ -116,4 +116,38 @@ public class CostiPeriodiResource {
                     .build();
         }
     }
+
+    /**
+     * Elimina un singolo periodo dinamico
+     */
+    @DELETE
+    @Path("/{energyCostId}/{monthStart}")
+    public Response deleteSinglePeriodo(
+            @PathParam("energyCostId") Integer energyCostId,
+            @PathParam("monthStart") Integer monthStart,
+            @CookieParam("SESSION_COOKIE") Integer sessionId) {
+        try {
+            Integer userId = sessionRepo.getUserIdBySessionId(sessionId);
+            if (userId == null) {
+                return Response.status(Response.Status.UNAUTHORIZED)
+                        .entity(Map.of("error", "Sessione non valida"))
+                        .build();
+            }
+
+            boolean deleted = costiPeriodiService.deleteSinglePeriodo(energyCostId, monthStart, userId);
+
+            if (deleted) {
+                return Response.ok(Map.of("message", "Periodo eliminato con successo")).build();
+            } else {
+                return Response.status(Response.Status.NOT_FOUND)
+                        .entity(Map.of("error", "Periodo non trovato o non autorizzato"))
+                        .build();
+            }
+        } catch (Exception e) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(Map.of("error", "Errore interno: " + e.getMessage()))
+                    .build();
+        }
+    }
+
 }

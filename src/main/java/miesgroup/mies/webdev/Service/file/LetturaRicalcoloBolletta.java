@@ -8,6 +8,7 @@ import miesgroup.mies.webdev.Model.Periodo;
 import miesgroup.mies.webdev.Model.bolletta.BollettaPod;
 import miesgroup.mies.webdev.Repository.bolletta.BollettaPodRepo;
 import miesgroup.mies.webdev.Repository.file.FileRepo;
+import miesgroup.mies.webdev.Service.bolletta.verBollettaPodService;
 import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
 
@@ -26,6 +27,7 @@ public class LetturaRicalcoloBolletta {
     @Inject FileRepo fileRepo;
     @Inject BollettaPodRepo bollettaPodRepo;
     @Inject Lettura lettura;
+    @Inject verBollettaPodService verBollettaService;
     // ======================================================
 // ===============   DTO SEMPLICI   =====================
 // ======================================================
