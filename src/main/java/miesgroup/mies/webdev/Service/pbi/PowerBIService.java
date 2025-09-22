@@ -2,6 +2,7 @@ package miesgroup.mies.webdev.Service.pbi;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -317,4 +318,34 @@ public class PowerBIService {
             return token;
         }
     }
+
+    public String wrapBudgetForPowerBI(String rawJsonArray) throws IOException {
+        ObjectMapper mapper = new ObjectMapper();
+        ArrayNode input = (ArrayNode) mapper.readTree(rawJsonArray);
+        ObjectNode wrapper = mapper.createObjectNode();
+        ArrayNode rows = mapper.createArrayNode();
+
+        for (JsonNode node : input) {
+            ObjectNode row = mapper.createObjectNode();
+
+            row.put("Anno-Mese", node.path("annoMese").asText());   // mappa il tuo campo FE/BE
+            row.put("Budget_Altro", node.path("budgetAltro").asDouble(0));
+            row.put("Budget_Energia", node.path("budgetEnergia").asDouble(0));
+            row.put("Budget_Imposte", node.path("budgetImposte").asDouble(0));
+            row.put("Budget_Oneri", node.path("budgetOneri").asDouble(0));
+            row.put("Budget_Penali", node.path("budgetPenali").asDouble(0));
+            row.put("Budget_Totale", node.path("budgetTotale").asDouble(0));
+            row.put("Budget_Trasporto", node.path("budgetTrasporto").asDouble(0));
+            row.put("Id_Bolletta", node.path("idBolletta").asInt(0));
+            row.put("id_pod", node.path("pod").asText());
+            row.put("Nome_Bolletta", node.path("nomeBolletta").asText());
+            row.put("TOT_Attiva", node.path("totAttiva").asDouble(0));
+
+            rows.add(row);
+        }
+
+        wrapper.set("rows", rows);
+        return mapper.writeValueAsString(wrapper);
+    }
+
 }
