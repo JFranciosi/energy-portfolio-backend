@@ -1,66 +1,161 @@
 package miesgroup.mies.webdev.Rest.Model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public class BudgetBollettaDTO {
-    public Integer Id_Bolletta;
-    public String  id_pod;
-    public String  Nome_Bolletta;
 
-    public Double  TOT_Attiva;
-    public Double  Budget_Energia;
-    public Double  Budget_Trasporto;
-    public Double  Budget_Oneri;
-    public Double  Budget_Imposte;
-    public Double  Budget_Totale;
-    public Double  Budget_Penali;
-    public Double  Budget_Altro;
+    @JsonProperty("IdBolletta")
+    private Integer idBolletta;
 
-    // 👉 aggiunti per filtro/report
-    public Integer Anno;
-    public Integer Mese;
+    @JsonProperty("idpod")
+    private String idPod;
 
-    public String  AnnoMese;
+    @JsonProperty("NomeBolletta")
+    private Integer nomeBolletta;
 
-    // --- getters/setters ---
+    @JsonProperty("TOTAttiva")
+    private Integer totAttiva;
 
-    public Integer getId_Bolletta() { return Id_Bolletta; }
-    public void setId_Bolletta(Integer id_Bolletta) { Id_Bolletta = id_Bolletta; }
+    @JsonProperty("BudgetEnergia")
+    private Integer budgetEnergia;
 
-    public String getId_pod() { return id_pod; }
-    public void setId_pod(String id_pod) { this.id_pod = id_pod; }
+    @JsonProperty("BudgetTrasporto")
+    private Integer budgetTrasporto;
 
-    public String getNome_Bolletta() { return Nome_Bolletta; }
-    public void setNome_Bolletta(String nome_Bolletta) { Nome_Bolletta = nome_Bolletta; }
+    @JsonProperty("BudgetOneri")
+    private Integer budgetOneri;
 
-    public Double getTOT_Attiva() { return TOT_Attiva; }
-    public void setTOT_Attiva(Double TOT_Attiva) { this.TOT_Attiva = TOT_Attiva; }
+    @JsonProperty("BudgetImposte")
+    private Integer budgetImposte;
 
-    public Double getBudget_Energia() { return Budget_Energia; }
-    public void setBudget_Energia(Double budget_Energia) { Budget_Energia = budget_Energia; }
+    @JsonProperty("BudgetTotale")
+    private Integer budgetTotale;
 
-    public Double getBudget_Trasporto() { return Budget_Trasporto; }
-    public void setBudget_Trasporto(Double budget_Trasporto) { Budget_Trasporto = budget_Trasporto; }
+    @JsonProperty("BudgetPenali")
+    private Integer budgetPenali;
 
-    public Double getBudget_Oneri() { return Budget_Oneri; }
-    public void setBudget_Oneri(Double budget_Oneri) { Budget_Oneri = budget_Oneri; }
+    @JsonProperty("BudgetAltro")
+    private Integer budgetAltro;
 
-    public Double getBudget_Imposte() { return Budget_Imposte; }
-    public void setBudget_Imposte(Double budget_Imposte) { Budget_Imposte = budget_Imposte; }
+    @JsonProperty("Anno-Mese")
+    private String annoMese;
 
-    public Double getBudget_Totale() { return Budget_Totale; }
-    public void setBudget_Totale(Double budget_Totale) { Budget_Totale = budget_Totale; }
+    // Constructor
+    public BudgetBollettaDTO() {}
 
-    public Double getBudget_Penali() { return Budget_Penali; }
-    public void setBudget_Penali(Double budget_Penali) { Budget_Penali = budget_Penali; }
+    // Getters and Setters
 
-    public Double getBudget_Altro() { return Budget_Altro; }
-    public void setBudget_Altro(Double budget_Altro) { Budget_Altro = budget_Altro; }
+    public Integer getIdBolletta() {
+        return idBolletta;
+    }
 
-    public Integer getAnno() { return Anno; }
-    public void setAnno(Integer anno) { Anno = anno; }
+    public void setIdBolletta(Integer idBolletta) {
+        this.idBolletta = idBolletta;
+    }
 
-    public Integer getMese() { return Mese; }
-    public void setMese(Integer mese) { Mese = mese; }
+    public String getIdPod() {
+        return idPod;
+    }
 
-    public String getAnnoMese() { return AnnoMese; }
-    public void setAnnoMese(String annoMese) { AnnoMese = annoMese; }
+    public void setIdPod(String idPod) {
+        this.idPod = idPod;
+    }
+
+    public Integer getNomeBolletta() {
+        return nomeBolletta;
+    }
+
+    public void setNomeBolletta(Integer nomeBolletta) {
+        this.nomeBolletta = nomeBolletta;
+    }
+
+    public Integer getTotAttiva() {
+        return totAttiva;
+    }
+
+    public void setTotAttiva(Integer totAttiva) {
+        this.totAttiva = totAttiva;
+    }
+
+    public Integer getBudgetEnergia() {
+        return budgetEnergia;
+    }
+
+    public void setBudgetEnergia(Integer budgetEnergia) {
+        this.budgetEnergia = budgetEnergia;
+    }
+
+    public Integer getBudgetTrasporto() {
+        return budgetTrasporto;
+    }
+
+    public void setBudgetTrasporto(Integer budgetTrasporto) {
+        this.budgetTrasporto = budgetTrasporto;
+    }
+
+    public Integer getBudgetOneri() {
+        return budgetOneri;
+    }
+
+    public void setBudgetOneri(Integer budgetOneri) {
+        this.budgetOneri = budgetOneri;
+    }
+
+    public Integer getBudgetImposte() {
+        return budgetImposte;
+    }
+
+    public void setBudgetImposte(Integer budgetImposte) {
+        this.budgetImposte = budgetImposte;
+    }
+
+    public Integer getBudgetTotale() {
+        return budgetTotale;
+    }
+
+    public void setBudgetTotale(Integer budgetTotale) {
+        this.budgetTotale = budgetTotale;
+    }
+
+    public Integer getBudgetPenali() {
+        return budgetPenali;
+    }
+
+    public void setBudgetPenali(Integer budgetPenali) {
+        this.budgetPenali = budgetPenali;
+    }
+
+    public Integer getBudgetAltro() {
+        return budgetAltro;
+    }
+
+    public void setBudgetAltro(Integer budgetAltro) {
+        this.budgetAltro = budgetAltro;
+    }
+
+    public String getAnnoMese() {
+        return annoMese;
+    }
+
+    public void setAnnoMese(String annoMese) {
+        this.annoMese = annoMese;
+    }
+
+    @Override
+    public String toString() {
+        return "BudgetBollettaDTO{" +
+                "idBolletta=" + idBolletta +
+                ", idPod='" + idPod + '\'' +
+                ", nomeBolletta=" + nomeBolletta +
+                ", totAttiva=" + totAttiva +
+                ", budgetEnergia=" + budgetEnergia +
+                ", budgetTrasporto=" + budgetTrasporto +
+                ", budgetOneri=" + budgetOneri +
+                ", budgetImposte=" + budgetImposte +
+                ", budgetTotale=" + budgetTotale +
+                ", budgetPenali=" + budgetPenali +
+                ", budgetAltro=" + budgetAltro +
+                ", annoMese='" + annoMese + '\'' +
+                '}';
+    }
 }

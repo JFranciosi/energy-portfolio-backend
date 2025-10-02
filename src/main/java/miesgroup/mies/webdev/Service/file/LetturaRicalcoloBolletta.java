@@ -1128,7 +1128,7 @@ public class LetturaRicalcoloBolletta {
                     changed |= logDiff("QVarTrasp", b.getQVarTrasp(), v.prezzo, () -> b.setQVarTrasp(v.prezzo));
                     break;
                 case "PENALITA_REATTIVA":
-                    changed |= logDiff("PenRCapI", b.getPenRCapI(), v.prezzo, () -> b.setPenRCapI(v.prezzo));
+                    changed |= logDiff("PenRCapI", Double.valueOf(b.getPenRCapI()), v.prezzo, () -> b.setPenRCapI(v.prezzo));
                     break;
 
                 // ===== Oneri =====
