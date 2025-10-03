@@ -9,6 +9,7 @@ import jakarta.ws.rs.core.Response;
 import miesgroup.mies.webdev.Model.budget.Budget;
 import miesgroup.mies.webdev.Model.cliente.Cliente;
 import miesgroup.mies.webdev.Repository.budget.BudgetRepo;
+import miesgroup.mies.webdev.Repository.cliente.SessionRepo;
 import miesgroup.mies.webdev.Service.budget.BudgetService;
 
 import java.util.ArrayList;
@@ -29,6 +30,8 @@ public class BudgetResource {
 
     @Inject
     BudgetService budgetService;
+    @Inject
+    SessionRepo sessioneRepo;
 
     /**
      * GET /budget/{pod}/{anno}
@@ -108,62 +111,83 @@ public class BudgetResource {
     @PUT
     @Path("/previsioni")
     @Transactional
-    public Response upsertPrevisione(@QueryParam("pod") String podId,
+    public Response upsertPrevisione(@CookieParam("SESSION_COOKIE") Integer sessionCookie,
+                                     @QueryParam("pod") String podId,
                                      @QueryParam("anno") Integer anno,
                                      @QueryParam("mese") Integer mese,
                                      Map<String, Object> body) {
-
-        Double prezzoPerc = extractDouble(body, "prezzoEnergiaPerc", 0.0);
-        Double consumiPerc = extractDouble(body, "consumiPerc", 0.0);
-        Double oneriPerc = extractDouble(body, "oneriPerc", 0.0);
-
-        Optional<Budget> existing = budgetRepo.findByPodAnnoMese(podId, anno, mese);
-        Budget budget;
-
-        if (existing.isPresent()) {
-            budget = existing.get();
-            budget.setPrezzoEnergiaPerc(prezzoPerc);
-            budget.setConsumiPerc(consumiPerc);
-            budget.setOneriPerc(oneriPerc);
-        } else {
-            // Clona dati base dall'anno precedente se presente, altrimenti usa 2025 come fallback
-            Optional<Budget> baseOpt = budgetRepo.findByPodAnnoMese(podId, anno, mese);
-            if (baseOpt.isEmpty()) {
-                baseOpt = budgetRepo.findByPodAnnoMese(podId, 2025, mese);
-            }
-            if (baseOpt.isEmpty()) {
-                return Response.status(Response.Status.NOT_FOUND)
-                        .entity(Map.of("error", "Dati base non trovati per creazione nuovo record"))
+        try {
+            // Validazione session cookie e estrazione cliente id
+            if (sessionCookie == null) {
+                return Response.status(Response.Status.UNAUTHORIZED)
+                        .entity(Map.of("error", "Cookie di sessione mancante"))
                         .build();
             }
 
-            Budget base = baseOpt.get();
-            budget = new Budget();
-            budget.setPod(podId);
-            budget.setAnno(anno);
-            budget.setMese(mese);
-            budget.setPrezzoEnergiaBase(base.getPrezzoEnergiaBase());
-            budget.setConsumiBase(base.getConsumiBase());
-            budget.setOneriBase(base.getOneriBase());
-            budget.setPrezzoEnergiaPerc(prezzoPerc);
-            budget.setConsumiPerc(consumiPerc);
-            budget.setOneriPerc(oneriPerc);
-            budget.setCliente(base.getCliente());
-        }
+            Integer clienteId = sessioneRepo.getUserIdBySessionId(sessionCookie);
+            if (clienteId == null) {
+                return Response.status(Response.Status.UNAUTHORIZED)
+                        .entity(Map.of("error", "Cliente non trovato dalla sessione"))
+                        .build();
+            }
 
-        // Assumi cliente id 1 (modifica come necessario per sessione reale)
-        Cliente cliente = new Cliente();
-        cliente.setId(1);
-        budget.setCliente(cliente);
+            Double prezzoPerc = extractDouble(body, "prezzoEnergiaPerc", 0.0);
+            Double consumiPerc = extractDouble(body, "consumiPerc", 0.0);
+            Double oneriPerc = extractDouble(body, "oneriPerc", 0.0);
 
-        boolean ok = budgetRepo.upsert(budget);
-        if (!ok) {
+            Optional<Budget> existing = budgetRepo.findByPodAnnoMese(podId, anno, mese);
+            Budget budget;
+
+            if (existing.isPresent()) {
+                budget = existing.get();
+                budget.setPrezzoEnergiaPerc(prezzoPerc);
+                budget.setConsumiPerc(consumiPerc);
+                budget.setOneriPerc(oneriPerc);
+            } else {
+                Optional<Budget> baseOpt = budgetRepo.findByPodAnnoMese(podId, anno, mese);
+                if (baseOpt.isEmpty()) {
+                    baseOpt = budgetRepo.findByPodAnnoMese(podId, 2025, mese);
+                }
+                if (baseOpt.isEmpty()) {
+                    return Response.status(Response.Status.NOT_FOUND)
+                            .entity(Map.of("error", "Dati base non trovati per creazione nuovo record"))
+                            .build();
+                }
+
+                Budget base = baseOpt.get();
+                budget = new Budget();
+                budget.setPod(podId);
+                budget.setAnno(anno);
+                budget.setMese(mese);
+                budget.setPrezzoEnergiaBase(base.getPrezzoEnergiaBase());
+                budget.setConsumiBase(base.getConsumiBase());
+                budget.setOneriBase(base.getOneriBase());
+                budget.setPrezzoEnergiaPerc(prezzoPerc);
+                budget.setConsumiPerc(consumiPerc);
+                budget.setOneriPerc(oneriPerc);
+                // Non settare cliente qui perché lo settiamo dopo da sessione
+            }
+
+            Cliente cliente = new Cliente();
+            cliente.setId(clienteId);
+            budget.setCliente(cliente);
+
+            boolean ok = budgetRepo.upsert(budget);
+            if (!ok) {
+                return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                        .entity(Map.of("error", "Errore nel salvataggio"))
+                        .build();
+            }
+            return Response.noContent().build();
+
+        } catch (Exception e) {
+            e.printStackTrace();
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity(Map.of("error", "Errore nel salvataggio"))
+                    .entity(Map.of("error", "Errore interno: " + e.getMessage()))
                     .build();
         }
-        return Response.noContent().build();
     }
+
 
     /**
      * GET /budget/prezzo-unitario?pod=...&anno=...&mese=...

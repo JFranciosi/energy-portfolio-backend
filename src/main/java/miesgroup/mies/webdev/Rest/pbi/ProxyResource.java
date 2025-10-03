@@ -45,6 +45,9 @@ public class ProxyResource {
 
     private final SessionRepo sessionRepo;
     private final PowerBIService powerBIService;
+    @Inject
+    SessionRepo sessioneRepo;
+
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
 
     public ProxyResource(SessionRepo sessionRepo, PowerBIService powerBIService) {
@@ -71,7 +74,7 @@ public class ProxyResource {
         headers.put("Accept", "application/json");
         return headers;
     }
-/*
+
     @GET
     @Path("/articoli")
     public Response inviaArticoliAPowerBI(@CookieParam("SESSION_COOKIE") Integer sessionCookie) {
@@ -84,18 +87,15 @@ public class ProxyResource {
             }
             System.out.println("[/proxy/articoli] session=" + sessionId);
 
-            String baseUrl  = IS_DEV_ENV ? BASE_URL_DEV : BASE_URL_PROD;
-            String targetUrl = baseUrl + "/costo-articolo?session_id=" + sessionId;
+            Integer userId = sessioneRepo.getUserIdBySessionId(sessionCookie);
 
-            HttpResponse<String> resp = powerBIService.getExternalData(targetUrl, buildSessionHeaders(sessionId));
-            if (resp.statusCode() != 200) {
-                System.out.println("Response Code: " + resp.statusCode());
-                System.out.println("Response Body: " + resp.body());
-                return Response.status(resp.statusCode()).entity(resp.body()).build();
+            if (userId == null) {
+                return Response.status(Response.Status.UNAUTHORIZED)
+                        .entity("{\"error\":\"User not found for session\"}")
+                        .build();
             }
 
-            String powerBIJson = powerBIService.wrapArticoliForPowerBI(resp.body());
-            return powerBIService.aggiornaTabellaCompleta(DATASET_ID_CONTROLLO, ARTICOLI, powerBIJson);
+            return powerBIService.inviaArticoliAPowerBIDB(userId, DATASET_ID_CONTROLLO, ARTICOLI);
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -105,8 +105,8 @@ public class ProxyResource {
         }
     }
 
- */
-/*
+
+
     @GET
     @Path("/pod")
     public Response inviaPodAPowerBI(@CookieParam("SESSION_COOKIE") Integer sessionCookie) {
@@ -140,39 +140,33 @@ public class ProxyResource {
         }
     }
 
- */
 
-    /*
+
     @GET
     @Path("/calendario")
-    public Response inviaCalendarioAPowerBI(@QueryParam("startYear") Integer startYear,
-                                            @QueryParam("endYear") Integer endYear) {
+    public Response inviaCalendarioAPowerBI() {
         try {
-            int from = (startYear != null) ? startYear : 2020;
-            int to   = (endYear != null)   ? endYear   : 2030;
+            List<CalendarioBollettaDTO> calendarioList = powerBIService.getCalendarioCompleto();
 
             ArrayNode rows = mapper.createArrayNode();
 
-            for (int year = from; year <= to; year++) {
-                for (int month = 1; month <= 12; month++) {
-                    ObjectNode row = mapper.createObjectNode();
-                    row.put("Anno", year);
-                    row.put("Mese_Numero", month);
-                    row.put("Mese_Nome", Month.of(month).getDisplayName(TextStyle.FULL, Locale.ITALIAN));
-                    row.put("Anno-Mese", String.format("%04d-%02d", year, month));
-                    row.put("Mese_Abbreviato", Month.of(month).getDisplayName(TextStyle.SHORT, Locale.ITALIAN));
-                    row.put("Trimestre", ((month - 1) / 3) + 1);
-                    row.put("Periodo", year + "-" + String.format("%02d", month));
-                    row.put("Periodo_Trimestre", year + " Q" + (((month - 1) / 3) + 1));
-                    rows.add(row);
-                }
+            for (CalendarioBollettaDTO dto : calendarioList) {
+                ObjectNode row = mapper.createObjectNode();
+                row.put("id", dto.getId());
+                row.put("mese_numero", dto.getMeseNumeroAnno());
+                row.put("anno", dto.getAnno());
+                row.put("nome_mese", dto.getNomeMese());
+                row.put("nome_mese_abbreviato", dto.getNomeMeseAbbreviato());
+                row.put("data_completa", dto.getDataCompleta());
+                row.put("meseAnno", dto.getMeseAnno());
+                rows.add(row);
             }
 
             ObjectNode wrapper = mapper.createObjectNode();
             wrapper.set("rows", rows);
             String powerBIJson = mapper.writeValueAsString(wrapper);
 
-            return powerBIService.aggiornaTabellaCompleta(BUDGET_DATASET, CALENDARIO, powerBIJson);
+            return powerBIService.aggiornaTabellaCompleta(DATASET_ID_CONTROLLO, CALENDARIO, powerBIJson);
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -181,91 +175,34 @@ public class ProxyResource {
                     .build();
         }
     }
-     */
-/*
+
+
     @GET
     @Path("/bollette")
     public Response inviaBolletteAPowerBI(@CookieParam("SESSION_COOKIE") Integer sessionCookie) {
+        System.out.println("\n========== INIZIO /proxy/bollette ==========");
+        System.out.println("[DEBUG] Timestamp: " + new java.util.Date());
+
         try {
+            System.out.println("[DEBUG] Step 1: Validazione session cookie");
+            System.out.println("[DEBUG] sessionCookie ricevuto: " + sessionCookie);
+
             String sessionId = validateSessionCookie(sessionCookie);
             if (sessionId == null) {
+                System.out.println("[ERROR] Session cookie non valido o mancante");
                 return Response.status(Response.Status.UNAUTHORIZED)
                         .entity("{\"error\":\"Missing SESSION_COOKIE\"}")
                         .build();
             }
-            System.out.println("[/proxy/bollette] session=" + sessionId);
 
-            String baseUrl  = IS_DEV_ENV ? BASE_URL_DEV : (BASE_URL_PROD + API_PORT_PROD);
-            String targetUrl = baseUrl + "/files/dati?session_id=" + sessionId;
+            System.out.println("[DEBUG] sessionId validato: " + sessionId);
+            //Integer userId = estraiUserIdDaSessione(sessionId);  // Devi implementare/mettere a disposizione questo metodo
+            Integer userId = sessioneRepo.getUserIdBySessionId(sessionCookie);
+            System.out.println("[DEBUG] userId estratto: " + userId);
 
-            HttpResponse<String> resp = powerBIService.getExternalData(targetUrl, buildSessionHeaders(sessionId));
-            if (resp.statusCode() != 200) {
-                System.out.println("Response Code: " + resp.statusCode());
-                System.out.println("Response Body: " + resp.body());
-                return Response.status(resp.statusCode()).entity(resp.body()).build();
-            }
+            // Chiama il servizio PowerBI passando userId, dataset id e nome tabella
+            return powerBIService.inviaBolletteAPowerBIDB(userId, DATASET_ID_CONTROLLO, BOLLETTE);
 
-            // --- Parse → DTO PBI con fallback ---
-            ArrayNode srcArray = (ArrayNode) mapper.readTree(resp.body());
-            ArrayNode rows = mapper.createArrayNode();
-
-            for (JsonNode n : srcArray) {
-                BollettaPodDtoPBI dto = toBollettaDtoPBI(n);
-
-                ObjectNode row = mapper.createObjectNode();
-                row.put("Id_Bolletta", nz(dto.getIdBolletta()));
-                row.put("id_pod", nz(dto.getIdPod()));
-                row.put("Nome_Bolletta", nz(dto.getNomeBolletta()));
-                row.put("F1_Attiva", nz(dto.getF1Attiva()));
-                row.put("F2_Attiva", nz(dto.getF2Attiva()));
-                row.put("F3_Attiva", nz(dto.getF3Attiva()));
-                row.put("F1_Reattiva", nz(dto.getF1Reattiva()));
-                row.put("F2_Reattiva", nz(dto.getF2Reattiva()));
-                row.put("F3_Reattiva", nz(dto.getF3Reattiva()));
-                row.put("F1_Potenza", nz(dto.getF1Potenza()));
-                row.put("F2_Potenza", nz(dto.getF2Potenza()));
-                row.put("F3_Potenza", nz(dto.getF3Potenza()));
-                row.put("Spese_Energia", nz(dto.getSpeseEnergia()));
-                row.put("Spese_Trasporto", nz(dto.getSpeseTrasporto()));
-                row.put("Oneri", nz(dto.getOneri()));
-                row.put("Imposte", nz(dto.getImposte()));
-                row.put("Periodo_Inizio", ensureIsoDateTime(dto.getPeriodoInizio()));
-                row.put("Periodo_Fine", ensureIsoDateTime(dto.getPeriodoFine()));
-                row.put("Mese", dto.getMese() == null ? 0 : dto.getMese());
-                row.put("TOT_Attiva", nz(dto.getTotAttiva()));
-                row.put("TOT_Reattiva", nz(dto.getTotReattiva()));
-                row.put("Generation", nz(dto.getGeneration()));
-                row.put("Dispacciamento", nz(dto.getDispacciamento()));
-                row.put("Verifica_Trasporti", nz(dto.getVerificaTrasporti()));
-                row.put("Penali33", nz(dto.getPenali33()));
-                row.put("Penali75", nz(dto.getPenali75()));
-                row.put("Verifica_Oneri", nz(dto.getVerificaOneri()));
-                row.put("Verifica_Imposte", nz(dto.getVerificaImposte()));
-                row.put("Altro", nz(dto.getAltro()));
-                row.put("Anno", dto.getAnno() == null ? 0 : dto.getAnno());
-                row.put("picco_kwh", nz(dto.getPiccoKwh()));
-                row.put("fuori_picco_kwh", nz(dto.getFuoriPiccoKwh()));
-                row.put("€_picco", nz(dto.getEuroPicco()));
-                row.put("€_fuori_picco", nz(dto.getEuroFuoriPicco()));
-                row.put("verifica_picco", nz(dto.getVerificaPicco()));
-                row.put("verifica_fuori_picco", nz(dto.getVerificaFuoriPicco()));
-                row.put("podNome", nz(dto.getPodNome() != null ? dto.getPodNome() : dto.getIdPod()));
-                row.put("Anno-Mese", nz(dto.getAnnoMese()));
-
-                rows.add(row);
-            }
-
-            ObjectNode wrapper = mapper.createObjectNode();
-            wrapper.set("rows", rows);
-            String powerBIJson = mapper.writeValueAsString(wrapper);
-
-            return powerBIService.aggiornaTabellaCompleta(BUDGET_DATASET, BOLLETTE, powerBIJson);
-
-        } catch (IOException ioe) {
-            ioe.printStackTrace();
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("{\"error\":\"JSON non valido: " + ioe.getMessage() + "\"}")
-                    .build();
         } catch (Exception e) {
             e.printStackTrace();
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
@@ -274,7 +211,7 @@ public class ProxyResource {
         }
     }
 
- */
+
 
     /**
      * Aggrega i dati budget per TUTTI i POD per l'anno indicato (default: anno corrente)

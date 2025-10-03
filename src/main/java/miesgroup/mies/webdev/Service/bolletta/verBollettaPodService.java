@@ -177,8 +177,8 @@ public class verBollettaPodService {
             ).orElse(0.0);
 
             System.out.println("UC3: " + UC3);
-            System.out.println("trasportoQuotaEne: " + trasportoQuotaEne);
-            System.out.println("distribuzioneQuotaEne: " + distribuzioneQuotaEne);
+            System.out.println("trasportoQuotaEne: " + trasportoQuotaEne * attivaTotale);
+            System.out.println("distribuzioneQuotaEne: " + distribuzioneQuotaEne * attivaTotale);
             System.out.println("distribuzioneQuotaFissa: " + distribuzioneQuotaFissa);
             System.out.println("misuraQuotaFissa: " + misuraQuotaFissa);
             System.out.println("distribuzioneQuotaPot: " + distribuzioneQuotaPot);
@@ -266,6 +266,7 @@ public class verBollettaPodService {
             Double quotaVariabileT = UC3T + trasportoQuotaEneT + distribuzioneQuotaEneT;
             Double distribuzioneQuotaPotT = distribuzioneQuotaPot * maggiorePotenza;
             Double penEneRCap = f3RCapI * costo33;
+            System.out.println("f3RCapI " + penEneRCap);
 
             Double speseTrasporto = distribuzioneQuotaPotT + quotaVariabileT + misuraQuotaFissa + distribuzioneQuotaFissa + penEneRCap;
             System.out.println("speseTrasporto: " + speseTrasporto);
@@ -297,7 +298,7 @@ public class verBollettaPodService {
 
             Double euroPicco = piccoKwh * costoPicco;
             Double euroFuoriPicco = fuoriPiccoKwh * costoFuoriPicco;
-            System.out.println("euroPicco: " + euroPicco);
+            System.out.println("eufroPicco: " + euroPicco);
             System.out.println("euroFuoriPicco: " + euroFuoriPicco);
 
             // ══════════════════════════════════════════════════════
@@ -314,6 +315,7 @@ public class verBollettaPodService {
             verBollettaPod dto = new verBollettaPod();
             dto.setBollettaId(b);
             dto.setNomeBolletta(nomeBolletta);
+            dto.setIdPod(idPod);
             dto.setTotAtt(arrotonda(attivaTotale));
             dto.setTotAttPerd(arrotonda(totAttivaPerdite));
 
@@ -336,8 +338,8 @@ public class verBollettaPodService {
             dto.setQFixTrasp(arrotonda(misuraQuotaFissa + distribuzioneQuotaFissa));
             dto.setQPotTrasp(arrotonda(distribuzioneQuotaPotT));
             dto.setUc3Uc6(arrotonda(UC3T));
-            dto.setTraspQEne(arrotonda(trasportoQuotaEne));
-            dto.setDistrQEne(arrotonda(distribuzioneQuotaEne));
+            dto.setTraspQEne(arrotonda(trasportoQuotaEneT));
+            dto.setDistrQEne(arrotonda(distribuzioneQuotaEneT));
             dto.setDistrQPot(arrotonda(distribuzioneQuotaPotT));
             dto.setMisQFix(arrotonda(misuraQuotaFissa));
             dto.setDistrQFix(arrotonda(distribuzioneQuotaFissa));
@@ -579,14 +581,23 @@ public class verBollettaPodService {
                     f0Kwh, f1Kwh, f2Kwh, f3Kwh, f1PerditeKwh, f2PerditeKwh, f3PerditeKwh
             );
 
+            double totaleCostiEnergia =
+                    (risultato.f0Euro != null ? risultato.f0Euro : 0.0) +
+                            (risultato.f1Euro != null ? risultato.f1Euro : 0.0) +
+                            (risultato.f2Euro != null ? risultato.f2Euro : 0.0) +
+                            (risultato.f3Euro != null ? risultato.f3Euro : 0.0);
+
+            System.out.println("[DEBUG] Totale costi energia calcolato: " + totaleCostiEnergia);
+
+            // Imposto il campo speseEne di bollettaPod con il totale calcolato
+            //bollettaPod.setSpeseEne(totaleCostiEnergia);
+
             // 5. Salva i risultati in ver_bolletta_pod
             salvaRisultatiCalcolo(bollettaPod.getNomeBolletta(), String.valueOf(meseInt),
                     bollettaPod.getAnno(), risultato,
                     f0Kwh, f1Kwh, f2Kwh, f3Kwh, f1PerditeKwh, f2PerditeKwh, f3PerditeKwh);
 
-
-            // Nel verBollettaPodService, nel metodo calcolaCostiEnergia, aggiungi:
-
+            // Resto del debug già presente
             System.out.println("=== DEBUG CALCOLO COSTI ===");
             System.out.println("clientId: " + clientId + ", anno: " + annoInt + ", mese: " + meseInt);
             System.out.println("f0Kwh: " + f0Kwh);
@@ -606,8 +617,6 @@ public class verBollettaPodService {
                 System.out.println("CostF3: " + costiEnergia.getCostF3());
                 System.out.println("PercentageVariable: " + costiEnergia.getPercentageVariable());
             }
-
-
         } catch (Exception e) {
             System.err.println("Errore nel calcolo costi energia: " + e.getMessage());
             e.printStackTrace();
@@ -757,6 +766,7 @@ public class verBollettaPodService {
 
         Double gmeValue = getGMEValue(mese, anno);
         BigDecimal gme = BigDecimal.valueOf(gmeValue);
+        System.out.println("GME: " + gme);
 
         BigDecimal costF1 = costiEnergia.getCostF1() != null ? costiEnergia.getCostF1() : BigDecimal.ZERO;
         BigDecimal costF2 = costiEnergia.getCostF2() != null ? costiEnergia.getCostF2() : BigDecimal.ZERO;
@@ -765,6 +775,7 @@ public class verBollettaPodService {
         // Calcola: (costo_fisso * perc_fissa + GME * perc_variabile) * kWh
 
         result.f0Euro = gme.multiply(BigDecimal.valueOf(f0Kwh != null ? f0Kwh : 0.0)).doubleValue();
+        System.out.println("f0Euro: " + result.f0Euro);
 
         result.f1Euro = costF1.multiply(BigDecimal.valueOf(f1Kwh != null ? f1Kwh : 0.0)).doubleValue();
         result.f1PerdEuro = costF1.multiply(BigDecimal.valueOf(f1PerditeKwh != null ? f1PerditeKwh : 0.0)).doubleValue();
@@ -816,7 +827,7 @@ public class verBollettaPodService {
      * Placeholder per GME - da implementare in futuro
      */
     private Double getGMEValue(int month, int year) {
-        String key = "$year-$month";
+        String key = year + "-" + month;
 
         switch (key) {
             // 2023 Data
@@ -834,18 +845,18 @@ public class verBollettaPodService {
             case "2023-12": return 0.116;
 
             // 2024 Data
-            case "2024-1": return 0.099;
-            case "2024-2": return 0.088;
-            case "2024-3": return 0.089;
-            case "2024-4": return 0.087;
-            case "2024-5": return 0.095;
-            case "2024-6": return 0.103;
-            case "2024-7": return 0.112;
-            case "2024-8": return 0.128;
-            case "2024-9": return 0.117;
-            case "2024-10": return 0.117;
-            case "2024-11": return 0.131;
-            case "2024-12": return 0.135;
+            case "2024-1": return 0.1091779800;
+            case "2024-2": return 0.0972745100;
+            case "2024-3": return 0.1006013200;
+            case "2024-4": return 0.0933715100 ;
+            case "2024-5": return 0.1069370800;
+            case "2024-6": return 0.1164437100;
+            case "2024-7": return 0.1216231300;
+            case "2024-8": return 0.1384999400;
+            case "2024-9": return 0.1277687100;
+            case "2024-10": return 0.1198823100;
+            case "2024-11": return 0.1338299500;
+            case "2024-12": return 0.1572625200;
 
             // 2025 Data
             case "2025-1": return 0.143;
