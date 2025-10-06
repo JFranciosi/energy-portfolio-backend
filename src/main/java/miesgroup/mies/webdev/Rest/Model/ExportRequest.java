@@ -3,6 +3,7 @@ package miesgroup.mies.webdev.Rest.Model;
 import java.util.ArrayList;
 import java.util.List;
 
+// Modello per la richiesta di esportazione dati (per preview o export vero e proprio)
 public class ExportRequest {
 
     public static class Field {
