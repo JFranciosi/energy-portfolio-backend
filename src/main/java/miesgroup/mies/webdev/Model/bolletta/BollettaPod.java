@@ -4,6 +4,7 @@ import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 
 import java.sql.Date;
+import java.time.LocalDate;
 import java.util.List;
 
 @Entity
@@ -136,6 +137,14 @@ public class BollettaPod extends PanacheEntityBase {
 
     //Energia Verde
     @Column(name = "En_Ve_Euro") private Double enVeEuro;
+
+
+
+    // Metadati bolletta
+    @Column(name = "Numero_Fattura") private String numeroFattura;
+    @Column(name = "Data_Fattura") private LocalDate dataFattura;
+    @Column(name = "Fornitore") private String fornitore;
+    @Column(name = "Distributore") private String distributore;
 
     /* =========================
        Getters & Setters
@@ -314,14 +323,16 @@ public class BollettaPod extends PanacheEntityBase {
     public void setQPotOnASOS(Double qPotOnASOS) { this.qPotOnASOS = qPotOnASOS; }
     public Double getQPotOnARIM() { return qPotOnARIM; }
     public void setQPotOnARIM(Double qPotOnARIM) { this.qPotOnARIM = qPotOnARIM; }
-    public Double getEnVeEuro() {
-        return enVeEuro;
-    }
-    public void setEnVeEuro(Double enVeEuro) {
-        this.enVeEuro = enVeEuro;
-    }
-
-
-    // Alias comodo per Panache (compat con vecchio codice, se usato)
+    public Double getEnVeEuro() {return enVeEuro;}public void setEnVeEuro(Double enVeEuro) {this.enVeEuro = enVeEuro;}
     public Integer getIdFile() { return id; }
+    public String getNumeroFattura() {return numeroFattura;}
+    public void setNumeroFattura(String numeroFattura) {this.numeroFattura = numeroFattura;}
+    public LocalDate getDataFattura() {return dataFattura;}
+    public void setDataFattura(LocalDate dataFattura) {this.dataFattura = dataFattura;}
+    public String getFornitore() {return fornitore;}
+    public void setFornitore(String fornitore) { this.fornitore = fornitore; }
+    public String getDistributore() { return distributore; }
+    public void setDistributore(String distributore) { this.distributore = distributore; }
 }
+
+
