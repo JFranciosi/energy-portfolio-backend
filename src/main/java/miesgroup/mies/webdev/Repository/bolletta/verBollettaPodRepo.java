@@ -5,10 +5,13 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import miesgroup.mies.webdev.Model.bolletta.BollettaPod;
+import miesgroup.mies.webdev.Model.bolletta.Pod;
 import miesgroup.mies.webdev.Model.bolletta.verBollettaPod;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class verBollettaPodRepo implements PanacheRepositoryBase<verBollettaPod, Integer> {
@@ -30,6 +33,12 @@ public class verBollettaPodRepo implements PanacheRepositoryBase<verBollettaPod,
     public Optional<verBollettaPod> findByNomeBolletta(String nomeBolletta) {
         return find("nomeBolletta", nomeBolletta).firstResultOptional();
     }
+
+    public List<verBollettaPod> findByPodList(List<Pod> pods) {
+        List<String> podIds = pods.stream().map(Pod::getId).toList();
+        return list("idPod IN ?1", podIds);
+    }
+
 
     public void deleteByBollettaId(Integer bollettaId) {
         delete("bollettaId", bollettaId);

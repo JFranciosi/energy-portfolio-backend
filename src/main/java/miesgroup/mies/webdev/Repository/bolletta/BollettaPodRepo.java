@@ -41,6 +41,11 @@ public class BollettaPodRepo implements PanacheRepositoryBase<BollettaPod, Integ
         return count("nomeBolletta = ?1 AND idPod = ?2", nomeBolletta, idPod) > 0;
     }
 
+    public List<Integer> findDistinctAnni() {
+        String jpql = "SELECT DISTINCT b.anno FROM BollettaPod b ORDER BY b.anno";
+        return em.createQuery(jpql, Integer.class).getResultList();
+    }
+
     /* ===== Letture utili ===== */
 
     public double getSommaAttiva(String nomeBolletta) {

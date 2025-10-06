@@ -8,6 +8,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 // Scegliamo solo le importazioni di RESTEasy Classic
+import jakarta.transaction.Transactional;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
 import jakarta.ws.rs.client.Entity;
@@ -20,6 +21,15 @@ import jakarta.json.JsonObject;
 import jakarta.json.JsonReader;
 
 // Logging
+import miesgroup.mies.webdev.Model.bolletta.BollettaPod;
+import miesgroup.mies.webdev.Model.bolletta.Pod;
+import miesgroup.mies.webdev.Model.bolletta.verBollettaPod;
+import miesgroup.mies.webdev.Model.cliente.Cliente;
+import miesgroup.mies.webdev.Repository.bolletta.BollettaPodRepo;
+import miesgroup.mies.webdev.Repository.bolletta.PodRepo;
+import miesgroup.mies.webdev.Repository.bolletta.verBollettaPodRepo;
+import miesgroup.mies.webdev.Repository.cliente.ClienteRepo;
+import miesgroup.mies.webdev.Rest.Model.CalendarioBollettaDTO;
 import org.jboss.logging.Logger;
 
 // Utility
@@ -30,6 +40,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 // Config
@@ -44,6 +56,18 @@ public class PowerBIService {
 
     @Inject
     private AzureADService azureADService;
+
+    @Inject
+    PodRepo podRepo;
+
+    @Inject
+    BollettaPodRepo bollettaPodRepo;
+
+    @Inject
+    verBollettaPodRepo verBollettaPodRepo;
+
+    @Inject
+    ClienteRepo clienteRepo;
 
     // =============================================
     // METODI PER L'INTERAZIONE CON POWER BI
@@ -607,16 +631,208 @@ public class PowerBIService {
      * Formatta i dati JSON degli articoli nel formato richiesto da PowerBI.
      */
     public String wrapArticoliForPowerBI(String rawJson) throws IOException {
+        System.out.println("[DEBUG] Raw JSON input:");
+        System.out.println(rawJson);
+
         ObjectMapper mapper = new ObjectMapper();
 
         // Presumo che rawJson sia un array di oggetti
         JsonNode articoliArray = mapper.readTree(rawJson);
+        System.out.println("[DEBUG] Parsed JSON array node, size: " + articoliArray.size());
+
+        for (int i = 0; i < articoliArray.size(); i++) {
+            JsonNode articolo = articoliArray.get(i);
+            System.out.println("[DEBUG] Articolo " + i + ": " + articolo.toString());
+        }
 
         ObjectNode root = mapper.createObjectNode();
         root.set("rows", articoliArray);
 
-        return mapper.writeValueAsString(root);
+        String wrappedJson = mapper.writeValueAsString(root);
+        System.out.println("[DEBUG] Wrapped JSON output:");
+        System.out.println(wrappedJson);
+
+        return wrappedJson;
     }
+
+    @Transactional
+    public Response inviaArticoliAPowerBIDB(Integer userId, String datasetId, String tableName) {
+        System.out.println("\n[DEBUG PBIService] === Inizio invio articoli da DB ===");
+        System.out.println("[DEBUG PBIService] userId: " + userId);
+        System.out.println("[DEBUG PBIService] datasetId: " + datasetId);
+        System.out.println("[DEBUG PBIService] tableName: " + tableName);
+
+        ObjectMapper mapper = new ObjectMapper();
+
+        try {
+            // 1. Recupera tutti i POD dell'utente
+            Cliente cliente = clienteRepo.findById(userId);
+            List<Pod> userPods = podRepo.list("utente", cliente);
+            System.out.println("[DEBUG PBIService] POD trovati: " + userPods.size());
+            if (userPods.isEmpty()) {
+                System.out.println("[WARN PBIService] Nessun POD trovato per userId: " + userId);
+                return Response.status(Response.Status.NOT_FOUND)
+                        .entity("{\"error\":\"Nessun POD trovato per l'utente\"}")
+                        .build();
+            }
+
+            // 2. Recupera tutte le bollette associate ai POD
+            List<BollettaPod> bollette = bollettaPodRepo.findBollettaPodByPods(userPods);
+            System.out.println("[DEBUG PBIService] Bollette trovate: " + bollette.size());
+
+            // Prepara mappa idBolletta -> BollettaPod per rapida ricerca mese
+            Map<Integer, BollettaPod> mappaBollette = new HashMap<>();
+            for (BollettaPod b : bollette) {
+                mappaBollette.put(b.getId(), b);
+            }
+
+            // 3. Recupera tutti verBollettaPod associati ai POD dell'utente
+            List<verBollettaPod> articoli = verBollettaPodRepo.findByPodList(userPods);
+            System.out.println("[DEBUG PBIService] Articoli trovati: " + articoli.size());
+
+            if (articoli.isEmpty()) {
+                System.out.println("[WARN PBIService] Nessun articolo trovato");
+                return Response.status(Response.Status.NOT_FOUND)
+                        .entity("{\"error\":\"Nessun articolo trovato\"}")
+                        .build();
+            }
+
+            // 4. Crea JSON per Power BI, ogni costo unitario come riga distinta
+            ArrayNode rows = mapper.createArrayNode();
+            int idCounter = 1;
+
+            for (verBollettaPod vp : articoli) {
+                System.out.println("\n[DEBUG PBIService] Elaborazione articolo verBollettaPod ID: " + vp.getId());
+                System.out.println("[DEBUG PBIService] nomeBolletta: " + vp.getNomeBolletta());
+
+                // Recupera idBolletta da verBollettaPod (adattare se bollettaId è oggetto)
+                Integer idBolletta = (vp.getBollettaId() != null) ? vp.getBollettaId().getId() : null;
+
+                // Recupera mese da mappa bollette
+                String mese = "unknown";
+                if (idBolletta != null && mappaBollette.containsKey(idBolletta)) {
+                    mese = mappaBollette.get(idBolletta).getMese();
+                }
+
+                System.out.println("[DEBUG PBIService] Mese associato: " + mese);
+                //imposte = imposte e penale reattiva induttiva = altro
+                // Costruzione righe dei costi unitari passa mese come argomento
+                rows.add(createArticoloRow(vp, "F0_Euro", vp.getF0Euro(), idCounter++, mese, "MATERIA ENERGIA"));
+                rows.add(createArticoloRow(vp, "F1_Euro", vp.getF1Euro(), idCounter++, mese, "MATERIA ENERGIA"));
+                rows.add(createArticoloRow(vp, "F1_Perd_Euro", vp.getF1PerdEuro(), idCounter++, mese, "MATERIA ENERGIA"));
+                rows.add(createArticoloRow(vp, "F2_Euro", vp.getF2Euro(), idCounter++, mese, "MATERIA ENERGIA"));
+                rows.add(createArticoloRow(vp, "F2_Perd_Euro", vp.getF2PerdEuro(), idCounter++, mese, "MATERIA ENERGIA"));//ALTRO, DISPACCIAMENTO, TRASPORTO, ONERI, IMPOSTE
+                rows.add(createArticoloRow(vp, "F3_Euro", vp.getF3Euro(), idCounter++, mese, "MATERIA ENERGIA"));
+                rows.add(createArticoloRow(vp, "F3_Perd_Euro", vp.getF3PerdEuro(), idCounter++, mese, "MATERIA ENERGIA"));
+
+                rows.add(createArticoloRow(vp, "QFix_Trasp", vp.getQFixTrasp(), idCounter++, mese, "TRASPORTO"));
+                rows.add(createArticoloRow(vp, "QPot_Trasp", vp.getQPotTrasp(), idCounter++, mese, "TRASPORTO"));
+                rows.add(createArticoloRow(vp, "QVar_Trasp", vp.getQVarTrasp(), idCounter++, mese, "TRASPORTO"));
+
+                rows.add(createArticoloRow(vp, "QEnOn_ASOS", vp.getQEnOnASOS(), idCounter++, mese, "ONERI"));
+                rows.add(createArticoloRow(vp, "QEnOn_ARIM", vp.getQEnOnARIM(), idCounter++, mese, "ONERI"));
+                rows.add(createArticoloRow(vp, "QFixOn_ASOS", vp.getQFixOnASOS(), idCounter++, mese, "ONERI"));
+                rows.add(createArticoloRow(vp, "QFixOn_ARIM", vp.getQFixOnARIM(), idCounter++, mese, "ONERI"));
+                rows.add(createArticoloRow(vp, "QPotOn_ASOS", vp.getQPotOnASOS(), idCounter++, mese, "ONERI"));
+                rows.add(createArticoloRow(vp, "QPotOn_ARIM", vp.getQPotOnARIM(), idCounter++, mese, "ONERI"));
+
+                rows.add(createArticoloRow(vp, "Art25bis", vp.getArt25bis(), idCounter++, mese, "DISPACCIAMENTO"));
+                rows.add(createArticoloRow(vp, "Art44_3", vp.getArt44_3(), idCounter++, mese, "DISPACCIAMENTO"));
+                rows.add(createArticoloRow(vp, "Art44bis", vp.getArt44bis(), idCounter++, mese, "DISPACCIAMENTO"));
+                rows.add(createArticoloRow(vp, "Art46", vp.getArt46(), idCounter++, mese, "DISPACCIAMENTO"));
+                rows.add(createArticoloRow(vp, "Art48", vp.getArt48(), idCounter++, mese, "DISPACCIAMENTO"));
+                rows.add(createArticoloRow(vp, "Art73", vp.getArt73(), idCounter++, mese, "DISPACCIAMENTO"));
+                rows.add(createArticoloRow(vp, "Art45Ann", vp.getArt45Ann(), idCounter++, mese, "DISPACCIAMENTO"));
+                rows.add(createArticoloRow(vp, "Art45Tri", vp.getArt45Tri(), idCounter++, mese, "DISPACCIAMENTO"));
+
+                rows.add(createArticoloRow(vp, "UC3_UC6", vp.getUc3Uc6(), idCounter++, mese, "TRASPORTO"));
+                rows.add(createArticoloRow(vp, "Trasp_QEne", vp.getTraspQEne(), idCounter++, mese, "TRASPORTO"));
+                rows.add(createArticoloRow(vp, "Distr_QEne", vp.getDistrQEne(), idCounter++, mese, "TRASPORTO"));
+                rows.add(createArticoloRow(vp, "Distr_QPot", vp.getDistrQPot(), idCounter++, mese, "TRASPORTO"));
+                rows.add(createArticoloRow(vp, "Mis_QFix", vp.getMisQFix(), idCounter++, mese, "TRASPORTO"));
+                rows.add(createArticoloRow(vp, "Distr_QFix", vp.getDistrQFix(), idCounter++, mese, "TRASPORTO"));
+
+                rows.add(createArticoloRow(vp, "f1Penale33", vp.getF1Pen33(), idCounter++, mese, "ALTRO"));
+                rows.add(createArticoloRow(vp, "f1Penale75", vp.getF1Pen75(), idCounter++, mese, "ALTRO"));
+                rows.add(createArticoloRow(vp, "f2Penale33", vp.getF2Pen33(), idCounter++, mese, "ALTRO"));
+                rows.add(createArticoloRow(vp, "f2Penale75", vp.getF2Pen75(), idCounter++, mese, "ALTRO"));
+                rows.add(createArticoloRow(vp, "Pen_RCapI", vp.getPenRCapI(), idCounter++, mese, "ALTRO"));
+            }
+
+            ObjectNode wrapper = mapper.createObjectNode();
+            wrapper.set("rows", rows);
+
+            String powerBIJson = mapper.writeValueAsString(wrapper);
+
+            System.out.println("[DEBUG PBIService] JSON creato - " + rows.size() + " righe");
+            System.out.println("[DEBUG PBIService] Lunghezza JSON: " + powerBIJson.length() + " chars");
+
+            return aggiornaTabellaCompleta(datasetId, tableName, powerBIJson);
+
+        } catch (Exception e) {
+            System.err.println("[ERROR PBIService] Errore: " + e.getMessage());
+            e.printStackTrace();
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity("{\"error\":\"" + e.getMessage() + "\"}")
+                    .build();
+        }
+    }
+
+
+    private ObjectNode createArticoloRow(verBollettaPod vp, String nomeArticolo, Double costoUnitario, int id, String mese, String categoriaDispacciamento) {
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectNode row = mapper.createObjectNode();
+
+        row.put("id", id);
+        row.put("costoUnitario", costoUnitario != null ? costoUnitario : 0.0);
+        row.put("mese", mese != null ? mese : "unknown");
+        row.put("nomeArticolo", nomeArticolo);
+        row.put("nomeBolletta", vp.getNomeBolletta());
+        row.put("categoriaArticolo", categoriaDispacciamento);
+
+        System.out.println("[DEBUG PBIService] Articolo creato - id: " + id + ", idPod: " + vp.getIdPod() + ", nomeArticolo: " + nomeArticolo + ", costoUnitario: " + costoUnitario + ", mese: " + mese + ", nomeBolletta: " + vp.getNomeBolletta());
+
+        return row;
+    }
+
+    private static final String[] MESINOMI = {
+            "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+            "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
+    };
+
+    private static final String[] MESIABBREVIATI = {
+            "Gen", "Feb", "Mar", "Apr", "Mag", "Giu",
+            "Lug", "Ago", "Set", "Ott", "Nov", "Dic"
+    };
+
+    public List<CalendarioBollettaDTO> getCalendarioCompleto() {
+        List<Integer> anni = bollettaPodRepo.findDistinctAnni(); // Metodo da implementare o ricavato
+
+        List<CalendarioBollettaDTO> calendarioList = new ArrayList<>();
+        int idCounter = 1;
+
+        for (Integer anno : anni) {
+            for (int mese = 1; mese <= 12; mese++) {
+                CalendarioBollettaDTO dto = new CalendarioBollettaDTO();
+
+                dto.setId((long) idCounter++);
+                dto.setMeseNumeroAnno(String.valueOf(mese));
+                dto.setAnno(String.valueOf(anno));
+                dto.setNomeMese(MESINOMI[mese - 1]);
+                dto.setNomeMeseAbbreviato(MESIABBREVIATI[mese - 1]);
+                dto.setDataCompleta(String.format("%d-%02d-01", anno, mese));
+                dto.setMeseAnno(MESIABBREVIATI[mese - 1] + " " + anno);
+
+                // Stampo i dati per debug
+                System.out.println("Generato CalendarioBollettaDTO: " + dto.toString());
+
+                calendarioList.add(dto);
+            }
+        }
+        return calendarioList;
+    }
+
+
 
     /**
      * Formatta i dati JSON dei POD nel formato richiesto da PowerBI.
@@ -624,13 +840,21 @@ public class PowerBIService {
     public String wrapPodForPowerBI(String rawJson) throws IOException {
         ObjectMapper mapper = new ObjectMapper();
 
+        // Stampa il JSON in ingresso
+        System.out.println("Input JSON: " + rawJson);
+
         // Presumo che rawJson sia un array di oggetti
         JsonNode podArray = mapper.readTree(rawJson);
 
         ObjectNode root = mapper.createObjectNode();
         root.set("rows", podArray);
 
-        return mapper.writeValueAsString(root);
+        String wrappedJson = mapper.writeValueAsString(root);
+
+        // Stampa il JSON di output
+        System.out.println("Output JSON: " + wrappedJson);
+
+        return wrappedJson;
     }
 
     /**
@@ -754,4 +978,332 @@ public class PowerBIService {
             return token;
         }
     }
+
+    @Transactional
+    public Response inviaBolletteAPowerBIDB(Integer userId, String datasetId, String tableName) {
+        System.out.println("\n[DEBUG PBIService] === Inizio invio bollette da DB ===");
+        System.out.println("[DEBUG PBIService] userId: " + userId);
+        System.out.println("[DEBUG PBIService] datasetId: " + datasetId);
+        System.out.println("[DEBUG PBIService] tableName: " + tableName);
+        ObjectMapper mapper = new ObjectMapper();
+
+        try {
+            // 1. Recupera tutti i POD dell'utente
+            Cliente cliente = clienteRepo.findById(userId);
+            List<Pod> userPods = podRepo.list("utente", cliente);
+
+            System.out.println("[DEBUG PBIService] POD trovati: " + userPods.size());
+
+            if (userPods.isEmpty()) {
+                System.out.println("[WARN PBIService] Nessun POD trovato per userId: " + userId);
+                return Response.status(Response.Status.NOT_FOUND)
+                        .entity("{\"error\":\"Nessun POD trovato per l'utente\"}")
+                        .build();
+            }
+
+            // 2. Recupera tutte le bollette dei POD dell'utente
+            List<BollettaPod> bollette = bollettaPodRepo.findBollettaPodByPods(userPods);
+            System.out.println("[DEBUG PBIService] Bollette trovate: " + bollette.size());
+
+            if (bollette.isEmpty()) {
+                System.out.println("[WARN PBIService] Nessuna bolletta trovata");
+                return Response.status(Response.Status.NOT_FOUND)
+                        .entity("{\"error\":\"Nessuna bolletta trovata\"}")
+                        .build();
+            }
+
+            // 3. Crea JSON per Power BI
+            ArrayNode rows = mapper.createArrayNode();
+
+            for (BollettaPod b : bollette) {
+                System.out.println("\n[DEBUG PBIService] Elaborazione bolletta ID: " + b.getId());
+
+                verBollettaPod ver = verBollettaPodRepo.findByBollettaId(b);
+                System.out.println("[DEBUG PBIService] Verifica trovata: " + (ver != null));
+
+                ObjectNode row = mapper.createObjectNode();
+
+                System.out.println("[DEBUG PBIService] id: " + nz(b.getId()));
+                row.put("id", nz(b.getId()));
+
+                System.out.println("[DEBUG PBIService] idPod: " + nz(b.getIdPod()));
+                row.put("idPod", nz(b.getIdPod()));
+
+                System.out.println("[DEBUG PBIService] nomeBolletta: " + nz(b.getNomeBolletta()));
+                row.put("nomeBolletta", nz(b.getNomeBolletta()));
+
+                System.out.println("[DEBUG PBIService] f1A: " + nz(b.getF1Att()));
+                row.put("f1A", nz(b.getF1Att()));
+
+                System.out.println("[DEBUG PBIService] f2A: " + nz(b.getF2Att()));
+                row.put("f2A", nz(b.getF2Att()));
+
+                System.out.println("[DEBUG PBIService] f3A: " + nz(b.getF3Att()));
+                row.put("f3A", nz(b.getF3Att()));
+
+                System.out.println("[DEBUG PBIService] f1R: " + nz(b.getF1R()));
+                row.put("f1R", nz(b.getF1R()));
+
+                System.out.println("[DEBUG PBIService] f2R: " + nz(b.getF2R()));
+                row.put("f2R", nz(b.getF2R()));
+
+                System.out.println("[DEBUG PBIService] f3R: " + nz(b.getF3R()));
+                row.put("f3R", nz(b.getF3R()));
+
+                System.out.println("[DEBUG PBIService] f1P: " + nz(b.getF1Pot()));
+                row.put("f1P", nz(b.getF1Pot()));
+
+                System.out.println("[DEBUG PBIService] f2P: " + nz(b.getF2Pot()));
+                row.put("f2P", nz(b.getF2Pot()));
+
+                System.out.println("[DEBUG PBIService] f3P: " + nz(b.getF3Pot()));
+                row.put("f3P", nz(b.getF3Pot()));
+
+                System.out.println("[DEBUG PBIService] totAttiva: " + nz(b.getTotAtt()));
+                row.put("totAttiva", nz(b.getTotAtt()));
+
+                System.out.println("[DEBUG PBIService] totReattiva: " + nz(b.getTotR()));
+                row.put("totReattiva", nz(b.getTotR()));
+
+                System.out.println("[DEBUG PBIService] speseEnergia: " + nz(b.getSpeseEne()));
+                row.put("speseEnergia", nz(b.getSpeseEne()));
+
+                System.out.println("[DEBUG PBIService] trasporti: " + nz(b.getSpeseTrasp()));
+                row.put("trasporti", nz(b.getSpeseTrasp()));
+
+                System.out.println("[DEBUG PBIService] oneri: " + nz(b.getOneri()));
+                row.put("oneri", nz(b.getOneri()));
+
+                System.out.println("[DEBUG PBIService] imposte: " + nz(b.getImposte()));
+                row.put("imposte", nz(b.getImposte()));
+
+                System.out.println("[DEBUG PBIService] generation: " + nz(b.getGeneration()));
+                row.put("generation", nz(b.getGeneration()));
+
+                System.out.println("[DEBUG PBIService] dispacciamento: " + nz(b.getDispacciamento()));
+                row.put("dispacciamento", nz(b.getDispacciamento()));
+
+                Double penali33 = sommaDoubles(b.getF1Pen33(), b.getF2Pen33());
+                System.out.println("[DEBUG PBIService] penali33 (somma): " + penali33);
+                row.put("penali33", nz(penali33));
+
+                Double penali75 = sommaDoubles(b.getF1Pen75(), b.getF2Pen75());
+                System.out.println("[DEBUG PBIService] penali75 (somma): " + penali75);
+                row.put("penali75", nz(penali75));
+
+                String periodoInizioStr = toSimpleDateString(b.getPeriodoInizio());
+                System.out.println("[DEBUG PBIService] periodoInizio: " + periodoInizioStr);
+                row.put("periodoInizio", periodoInizioStr);
+
+                String periodoFineStr = toSimpleDateString(b.getPeriodoFine());
+                System.out.println("[DEBUG PBIService] periodoFine: " + periodoFineStr);
+                row.put("periodoFine", periodoFineStr);
+
+                System.out.println("[DEBUG PBIService] anno: " + nz(b.getAnno()));
+                row.put("anno", nz(b.getAnno()));
+
+                System.out.println("[DEBUG PBIService] mese: " + nz(b.getMese()));
+                row.put("mese", nz(b.getMese()));
+
+                System.out.println("[DEBUG PBIService] meseAnno: " + nz(b.getMeseAnno()));
+                row.put("meseAnno", nz(b.getMeseAnno()));
+
+                System.out.println("[DEBUG PBIService] piccoKwh: " + nz(b.getPiccoKwh()));
+                row.put("piccoKwh", nz(b.getPiccoKwh()));
+
+                System.out.println("[DEBUG PBIService] fuoriPiccoKwh: " + nz(b.getFuoriPiccoKwh()));
+                row.put("fuoriPiccoKwh", nz(b.getFuoriPiccoKwh()));
+
+                System.out.println("[DEBUG PBIService] costoPicco: " + nz(b.getEuroPicco()));
+                row.put("costoPicco", nz(b.getEuroPicco()));
+
+                System.out.println("[DEBUG PBIService] costoFuoriPicco: " + nz(b.getEuroFuoriPicco()));
+                row.put("costoFuoriPicco", nz(b.getEuroFuoriPicco()));
+
+                // Se verify esiste
+                if (ver != null) {
+                    System.out.println("[DEBUG PBIService] verificaOneri: " + nz(ver.getOneri()));
+                    row.put("verificaOneri", nz(ver.getOneri()));
+
+                    System.out.println("[DEBUG PBIService] verificaTrasporti: " + nz(ver.getSpeseTrasp()));
+                    row.put("verificaTrasporti", nz(ver.getSpeseTrasp()));
+
+                    System.out.println("[DEBUG PBIService] verificaImposte: " + nz(ver.getImposte()));
+                    row.put("verificaImposte", nz(ver.getImposte()));
+
+                    System.out.println("[DEBUG PBIService] verificaPicco: " + nz(ver.getEuroPicco()));
+                    row.put("verificaPicco", nz(ver.getEuroPicco()));
+
+                    System.out.println("[DEBUG PBIService] verificaFuoriPicco: " + nz(ver.getEuroFuoriPicco()));
+                    row.put("verificaFuoriPicco", nz(ver.getEuroFuoriPicco()));
+
+                    System.out.println("[DEBUG PBIService] verificaSpesaMateriaEnergia: " + ver.getF0Euro()+ver.getF1Euro()+ver.getF2Euro()+ver.getF3Euro());
+                    row.put("verificaSpesaMateriaEnergia", ver.getF0Euro()+ver.getF1Euro()+ver.getF2Euro()+ver.getF3Euro() + ver.getF1PerdEuro() + ver.getF2PerdEuro() + ver.getF3PerdEuro() + ver.getDispacciamento() + ver.getEuroPicco() + ver.getEuroFuoriPicco());
+
+                    System.out.println("[DEBUG PBIService] altro: " + nz(b.getPenRCapI()));
+                    row.put("altro", nz(b.getPenRCapI()));
+
+                    System.out.println("[DEBUG PBIService] verificaDispacciamento: " + nz(ver.getDispacciamento()));
+                    row.put("verificaDispacciamento", nz(ver.getDispacciamento()));
+
+                    System.out.println("[DEBUG PBIService] f0Euro: " + nz(ver.getF0Euro()));
+                    row.put("f0Euro", nz(ver.getF0Euro()));
+
+                    System.out.println("[DEBUG PBIService] f1Euro: " + nz(ver.getF1Euro()));
+                    row.put("f1Euro", nz(ver.getF1Euro()));
+
+                    System.out.println("[DEBUG PBIService] f2Euro: " + nz(ver.getF2Euro()));
+                    row.put("f2Euro", nz(ver.getF2Euro()));
+
+                    System.out.println("[DEBUG PBIService] f3Euro: " + nz(ver.getF3Euro()));
+                    row.put("f3Euro", nz(ver.getF3Euro()));
+
+                    System.out.println("[DEBUG PBIService] f1PerditeEuro: " + nz(ver.getF1PerdEuro()));
+                    row.put("f1PerditeEuro", nz(ver.getF1PerdEuro()));
+
+                    System.out.println("[DEBUG PBIService] f2PerditeEuro: " + nz(ver.getF2PerdEuro()));
+                    row.put("f2PerditeEuro", nz(ver.getF2PerdEuro()));
+
+                    System.out.println("[DEBUG PBIService] f3PerditeEuro: " + nz(ver.getF3PerdEuro()));
+                    row.put("f3PerditeEuro", nz(ver.getF3PerdEuro()));
+
+                    System.out.println("[DEBUG PBIService] f0Kwh: " + nz(ver.getF0Kwh()));
+                    row.put("f0Kwh", nz(ver.getF0Kwh()));
+
+                    System.out.println("[DEBUG PBIService] f1Kwh: " + nz(ver.getF1Kwh()));
+                    row.put("f1Kwh", nz(ver.getF1Kwh()));
+
+                    System.out.println("[DEBUG PBIService] f2Kwh: " + nz(ver.getF2Kwh()));
+                    row.put("f2Kwh", nz(ver.getF2Kwh()));
+
+                    System.out.println("[DEBUG PBIService] f3Kwh: " + nz(ver.getF3Kwh()));
+                    row.put("f3Kwh", nz(ver.getF3Kwh()));
+
+                    System.out.println("[DEBUG PBIService] f1PerditeKwh: " + nz(ver.getF1PerdKwh()));
+                    row.put("f1PerditeKwh", nz(ver.getF1PerdKwh()));
+
+                    System.out.println("[DEBUG PBIService] f2PerditeKwh: " + nz(ver.getF2PerdKwh()));
+                    row.put("f2PerditeKwh", nz(ver.getF2PerdKwh()));
+
+                    System.out.println("[DEBUG PBIService] f3PerditeKwh: " + nz(ver.getF3PerdKwh()));
+                    row.put("f3PerditeKwh", nz(ver.getF3PerdKwh()));
+
+                    System.out.println("[DEBUG PBIService] totAttivaPerdite: " + nz(ver.getTotAttPerd()));
+                    row.put("totAttivaPerdite", nz(ver.getTotAttPerd()));
+
+                    System.out.println("[DEBUG PBIService] quotaVariabileTrasporti: " + nz(ver.getQVarTrasp()));
+                    row.put("quotaVariabileTrasporti", nz(ver.getQVarTrasp()));
+
+                    System.out.println("[DEBUG PBIService] quotaFissaTrasporti: " + nz(ver.getQFixTrasp()));
+                    row.put("quotaFissaTrasporti", nz(ver.getQFixTrasp()));
+
+                    System.out.println("[DEBUG PBIService] quotaPotenzaTrasporti: " + nz(ver.getQPotTrasp()));
+                    row.put("quotaPotenzaTrasporti", nz(ver.getQPotTrasp()));
+
+                    Double quotaEnergiaOneri = sommaDoubles(ver.getQEnOnASOS(), ver.getQEnOnARIM());
+                    System.out.println("[DEBUG PBIService] quotaEnergiaOneri (somma): " + quotaEnergiaOneri);
+                    row.put("quotaEnergiaOneri", nz(quotaEnergiaOneri));
+
+                    Double quotaFissaOneri = sommaDoubles(ver.getQFixOnASOS(), ver.getQFixOnARIM());
+                    System.out.println("[DEBUG PBIService] quotaFissaOneri (somma): " + quotaFissaOneri);
+                    row.put("quotaFissaOneri", nz(quotaFissaOneri));
+
+                    Double quotaPotenzaOneri = sommaDoubles(ver.getQPotOnASOS(), ver.getQPotOnARIM());
+                    System.out.println("[DEBUG PBIService] quotaPotenzaOneri (somma): " + quotaPotenzaOneri);
+                    row.put("quotaPotenzaOneri", nz(quotaPotenzaOneri));
+
+                    // Campi TODO (mettiamo a zero per ora)
+                    System.out.println("[DEBUG PBIService] verificaF0: 0.0");
+                    row.put("verificaF0", 0.0);
+
+                    System.out.println("[DEBUG PBIService] verificaF1: 0.0");
+                    row.put("verificaF1", 0.0);
+
+                    System.out.println("[DEBUG PBIService] verificaF2: 0.0");
+                    row.put("verificaF2", 0.0);
+
+                    System.out.println("[DEBUG PBIService] verificaF3: 0.0");
+                    row.put("verificaF3", 0.0);
+
+                    System.out.println("[DEBUG PBIService] verificaF1Perdite: 0.0");
+                    row.put("verificaF1Perdite", 0.0);
+
+                    System.out.println("[DEBUG PBIService] verificaF2Perdite: 0.0");
+                    row.put("verificaF2Perdite", 0.0);
+
+                    System.out.println("[DEBUG PBIService] verificaF3Perdite: 0.0");
+                    row.put("verificaF3Perdite", 0.0);
+
+                } else {
+                    System.out.println("[DEBUG PBIService] Nessuna verifica, imposto tutto a zero di default");
+                    String[] zeroFields = {
+                            "verificaOneri", "verificaTrasporti", "verificaImposte", "verificaPicco", "verificaFuoriPicco",
+                            "verificaSpesaMateriaEnergia", "verificaDispacciamento", "f0Euro", "f1Euro", "f2Euro", "f3Euro",
+                            "f1PerditeEuro", "f2PerditeEuro", "f3PerditeEuro", "f0Kwh", "f1Kwh", "f2Kwh", "f3Kwh", "f1PerditeKwh",
+                            "f2PerditeKwh", "f3PerditeKwh", "verificaF0", "verificaF1", "verificaF2", "verificaF3", "verificaF1Perdite",
+                            "verificaF2Perdite", "verificaF3Perdite", "totAttivaPerdite", "quotaVariabileTrasporti", "quotaFissaTrasporti",
+                            "quotaPotenzaTrasporti", "quotaEnergiaOneri", "quotaFissaOneri", "quotaPotenzaOneri" };
+                    for (String field : zeroFields) {
+                        System.out.println("[DEBUG PBIService] " + field + ": 0.0");
+                        row.put(field, 0.0);
+                    }
+                }
+
+                rows.add(row);
+            }
+
+            ObjectNode wrapper = mapper.createObjectNode();
+            wrapper.set("rows", rows);
+            String powerBIJson = mapper.writeValueAsString(wrapper);
+
+            System.out.println("[DEBUG PBIService] JSON creato - " + rows.size() + " righe");
+            System.out.println("[DEBUG PBIService] Lunghezza JSON: " + powerBIJson.length() + " chars");
+
+            return aggiornaTabellaCompleta(datasetId, tableName, powerBIJson);
+
+        } catch (Exception e) {
+            System.err.println("[ERROR PBIService] Errore: " + e.getMessage());
+            e.printStackTrace();
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity("{\"error\":\"" + e.getMessage() + "\"}")
+                    .build();
+        }
+    }
+
+    public String toSimpleDateString(java.sql.Date date) {
+        if (date == null) {
+            return null;
+        }
+        LocalDate localDate = LocalDate.parse(date.toString()); // data in formato yyyy-MM-dd
+        return localDate.format(DateTimeFormatter.ISO_LOCAL_DATE); // "yyyy-MM-dd"
+    }
+
+    // Helper per sommare due Double (null-safe)
+    private Double sommaDoubles(Double a, Double b) {
+        return Optional.ofNullable(a).orElse(0.0) + Optional.ofNullable(b).orElse(0.0);
+    }
+
+    // Helper per convertire java.sql.Date a ISO DateTime String
+    private String ensureIsoDateTime(java.sql.Date date) {
+        if (date == null) return null;
+        return date.toLocalDate().atStartOfDay().format(DateTimeFormatter.ISO_DATE_TIME);
+    }
+
+    // Helper per valori null (già esistente, ma per sicurezza)
+    private String nz(Object val) {
+        if (val == null) return "";
+        if (val instanceof Double || val instanceof Integer) {
+            return val.toString();
+        }
+        return val.toString();
+    }
+
+    private Double nz(Double val) {
+        return val != null ? val : 0.0;
+    }
+
+    private Integer nz(Integer val) {
+        return val != null ? val : 0;
+    }
+
 }
