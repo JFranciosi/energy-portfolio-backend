@@ -27,8 +27,9 @@ public class Lettura {
             Node lineNode = lineNodes.item(i);
             if (lineNode.getNodeType() == Node.ELEMENT_NODE) {
                 String lineText = lineNode.getTextContent();
-                if (lineText.contains("Bolletta n")) {
-                    String nome = extractBollettaNumero(lineText);
+                // Cerca qualsiasi variante di "Bolletta" che abbia anche "n."
+                if (lineText.contains("Bolletta") && lineText.contains("n.")) {
+                    String nome = extractBollettaNumeroGenerica(lineText);
                     if (nome != null) {
                         LogCustom.logOk("Bolletta trovata: n. " + nome);
                     }
@@ -38,6 +39,17 @@ public class Lettura {
         }
         return null;
     }
+
+    // Nuova regex per estrarre sia "Bolletta n." che "Bolletta di CHIUSURA CONTRATTO n."
+    public static String extractBollettaNumeroGenerica(String lineText) {
+        Pattern pattern = Pattern.compile("Bolletta(?:[^n]*)n\\.\\s*(\\d+)");
+        Matcher matcher = pattern.matcher(lineText);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return null;
+    }
+
 
     public static String extractBollettaNumero(String lineText) {
         Pattern pattern = Pattern.compile("Bolletta n\\. (\\d+)");

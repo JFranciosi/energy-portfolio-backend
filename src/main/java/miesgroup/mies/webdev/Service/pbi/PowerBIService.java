@@ -705,6 +705,8 @@ public class PowerBIService {
                 System.out.println("\n[DEBUG PBIService] Elaborazione articolo verBollettaPod ID: " + vp.getId());
                 System.out.println("[DEBUG PBIService] nomeBolletta: " + vp.getNomeBolletta());
 
+                BollettaPod b = bollettaPodRepo.findById(vp.getBollettaId().getId());
+
                 // Recupera idBolletta da verBollettaPod (adattare se bollettaId è oggetto)
                 Integer idBolletta = (vp.getBollettaId() != null) ? vp.getBollettaId().getId() : null;
 
@@ -717,17 +719,16 @@ public class PowerBIService {
                 System.out.println("[DEBUG PBIService] Mese associato: " + mese);
                 //imposte = imposte e penale reattiva induttiva = altro
                 // Costruzione righe dei costi unitari passa mese come argomento
-                rows.add(createArticoloRow(vp, "F0_Euro", vp.getF0Euro(), idCounter++, mese, "MATERIA ENERGIA"));
-                rows.add(createArticoloRow(vp, "F1_Euro", vp.getF1Euro(), idCounter++, mese, "MATERIA ENERGIA"));
-                rows.add(createArticoloRow(vp, "F1_Perd_Euro", vp.getF1PerdEuro(), idCounter++, mese, "MATERIA ENERGIA"));
-                rows.add(createArticoloRow(vp, "F2_Euro", vp.getF2Euro(), idCounter++, mese, "MATERIA ENERGIA"));
-                rows.add(createArticoloRow(vp, "F2_Perd_Euro", vp.getF2PerdEuro(), idCounter++, mese, "MATERIA ENERGIA"));//ALTRO, DISPACCIAMENTO, TRASPORTO, ONERI, IMPOSTE
-                rows.add(createArticoloRow(vp, "F3_Euro", vp.getF3Euro(), idCounter++, mese, "MATERIA ENERGIA"));
-                rows.add(createArticoloRow(vp, "F3_Perd_Euro", vp.getF3PerdEuro(), idCounter++, mese, "MATERIA ENERGIA"));
-
-                rows.add(createArticoloRow(vp, "QFix_Trasp", vp.getQFixTrasp(), idCounter++, mese, "TRASPORTO"));
-                rows.add(createArticoloRow(vp, "QPot_Trasp", vp.getQPotTrasp(), idCounter++, mese, "TRASPORTO"));
-                rows.add(createArticoloRow(vp, "QVar_Trasp", vp.getQVarTrasp(), idCounter++, mese, "TRASPORTO"));
+                rows.add(createArticoloRow(vp, "F0_Euro", b.getF0Euro(), idCounter++, mese, "MATERIA ENERGIA"));
+                rows.add(createArticoloRow(vp, "F1_Euro", b.getF1Euro(), idCounter++, mese, "MATERIA ENERGIA"));
+                rows.add(createArticoloRow(vp, "F1_Perd_Euro", b.getF1PerdEuro(), idCounter++, mese, "MATERIA ENERGIA"));
+                rows.add(createArticoloRow(vp, "F2_Euro", b.getF2Euro(), idCounter++, mese, "MATERIA ENERGIA"));
+                rows.add(createArticoloRow(vp, "F2_Perd_Euro", b.getF2PerdEuro(), idCounter++, mese, "MATERIA ENERGIA"));//ALTRO, DISPACCIAMENTO, TRASPORTO, ONERI, IMPOSTE
+                rows.add(createArticoloRow(vp, "F3_Euro", b.getF3Euro(), idCounter++, mese, "MATERIA ENERGIA"));
+                rows.add(createArticoloRow(vp, "F3_Perd_Euro", b.getF3PerdEuro(), idCounter++, mese, "MATERIA ENERGIA"));
+                //rows.add(createArticoloRow(vp, "Dispacciamento", vp.getDispacciamento(), idCounter++, mese, "MATERIA ENERGIA"));
+                rows.add(createArticoloRow(vp, "Euro Picco", b.getEuroPicco(), idCounter++, mese, "MATERIA ENERGIA"));
+                rows.add(createArticoloRow(vp, "Euro Fuori Picco", b.getEuroFuoriPicco(), idCounter++, mese, "MATERIA ENERGIA"));
 
                 rows.add(createArticoloRow(vp, "QEnOn_ASOS", vp.getQEnOnASOS(), idCounter++, mese, "ONERI"));
                 rows.add(createArticoloRow(vp, "QEnOn_ARIM", vp.getQEnOnARIM(), idCounter++, mese, "ONERI"));
@@ -744,19 +745,25 @@ public class PowerBIService {
                 rows.add(createArticoloRow(vp, "Art73", vp.getArt73(), idCounter++, mese, "DISPACCIAMENTO"));
                 rows.add(createArticoloRow(vp, "Art45Ann", vp.getArt45Ann(), idCounter++, mese, "DISPACCIAMENTO"));
                 rows.add(createArticoloRow(vp, "Art45Tri", vp.getArt45Tri(), idCounter++, mese, "DISPACCIAMENTO"));
+/*
+                rows.add(createArticoloRow(vp, "UC3_UC6", vp.getUc3Uc6(), idCounter++, mese, "TRASPORTI"));
+                rows.add(createArticoloRow(vp, "Trasp_QEne", vp.getTraspQEne(), idCounter++, mese, "TRASPORTI"));
+                rows.add(createArticoloRow(vp, "Distr_QEne", vp.getDistrQEne(), idCounter++, mese, "TRASPORTI"));
+                rows.add(createArticoloRow(vp, "Distr_QPot", vp.getDistrQPot(), idCounter++, mese, "TRASPORTI"));
+                rows.add(createArticoloRow(vp, "Mis_QFix", vp.getMisQFix(), idCounter++, mese, "TRASPORTI"));
+                rows.add(createArticoloRow(vp, "Distr_QFix", vp.getDistrQFix(), idCounter++, mese, "TRASPORTI"));
+ */
+                rows.add(createArticoloRow(vp, "QFix_Trasp", b.getQFixTrasp(), idCounter++, mese, "TRASPORTI"));
+                rows.add(createArticoloRow(vp, "QPot_Trasp", b.getQPotTrasp(), idCounter++, mese, "TRASPORTI"));
+                rows.add(createArticoloRow(vp, "QVar_Trasp", b.getQVarTrasp(), idCounter++, mese, "TRASPORTI"));
 
-                rows.add(createArticoloRow(vp, "UC3_UC6", vp.getUc3Uc6(), idCounter++, mese, "TRASPORTO"));
-                rows.add(createArticoloRow(vp, "Trasp_QEne", vp.getTraspQEne(), idCounter++, mese, "TRASPORTO"));
-                rows.add(createArticoloRow(vp, "Distr_QEne", vp.getDistrQEne(), idCounter++, mese, "TRASPORTO"));
-                rows.add(createArticoloRow(vp, "Distr_QPot", vp.getDistrQPot(), idCounter++, mese, "TRASPORTO"));
-                rows.add(createArticoloRow(vp, "Mis_QFix", vp.getMisQFix(), idCounter++, mese, "TRASPORTO"));
-                rows.add(createArticoloRow(vp, "Distr_QFix", vp.getDistrQFix(), idCounter++, mese, "TRASPORTO"));
+                rows.add(createArticoloRow(vp, "f1Penale33", vp.getF1Pen33(), idCounter++, mese, "ALTRI"));
+                rows.add(createArticoloRow(vp, "f1Penale75", vp.getF1Pen75(), idCounter++, mese, "ALTRI"));
+                rows.add(createArticoloRow(vp, "f2Penale33", vp.getF2Pen33(), idCounter++, mese, "ALTRI"));
+                rows.add(createArticoloRow(vp, "f2Penale75", vp.getF2Pen75(), idCounter++, mese, "ALTRI"));
+                rows.add(createArticoloRow(vp, "Pen_RCapI", b.getPenRCapI(), idCounter++, mese, "ALTRI"));
 
-                rows.add(createArticoloRow(vp, "f1Penale33", vp.getF1Pen33(), idCounter++, mese, "ALTRO"));
-                rows.add(createArticoloRow(vp, "f1Penale75", vp.getF1Pen75(), idCounter++, mese, "ALTRO"));
-                rows.add(createArticoloRow(vp, "f2Penale33", vp.getF2Pen33(), idCounter++, mese, "ALTRO"));
-                rows.add(createArticoloRow(vp, "f2Penale75", vp.getF2Pen75(), idCounter++, mese, "ALTRO"));
-                rows.add(createArticoloRow(vp, "Pen_RCapI", vp.getPenRCapI(), idCounter++, mese, "ALTRO"));
+                rows.add(createArticoloRow(vp, "imposte", vp.getImposte(), idCounter++, mese, "IMPOSTE"));
             }
 
             ObjectNode wrapper = mapper.createObjectNode();
@@ -1066,7 +1073,7 @@ public class PowerBIService {
                 row.put("totReattiva", nz(b.getTotR()));
 
                 System.out.println("[DEBUG PBIService] speseEnergia: " + nz(b.getSpeseEne()));
-                row.put("speseEnergia", nz(b.getSpeseEne()));
+                row.put("speseEnergia", nz(b.getSpeseEne()-b.getDispacciamento()));
 
                 System.out.println("[DEBUG PBIService] trasporti: " + nz(b.getSpeseTrasp()));
                 row.put("trasporti", nz(b.getSpeseTrasp()));
@@ -1126,7 +1133,8 @@ public class PowerBIService {
                     row.put("verificaOneri", nz(ver.getOneri()));
 
                     System.out.println("[DEBUG PBIService] verificaTrasporti: " + nz(ver.getSpeseTrasp()));
-                    row.put("verificaTrasporti", nz(ver.getSpeseTrasp()));
+                    //row.put("verificaTrasporti", nz(ver.getSpeseTrasp()));b.getSpeseTrasp()
+                    row.put("verificaTrasporti", nz(b.getSpeseTrasp()));
 
                     System.out.println("[DEBUG PBIService] verificaImposte: " + nz(ver.getImposte()));
                     row.put("verificaImposte", nz(ver.getImposte()));
@@ -1137,8 +1145,11 @@ public class PowerBIService {
                     System.out.println("[DEBUG PBIService] verificaFuoriPicco: " + nz(ver.getEuroFuoriPicco()));
                     row.put("verificaFuoriPicco", nz(ver.getEuroFuoriPicco()));
 
+                            /*
                     System.out.println("[DEBUG PBIService] verificaSpesaMateriaEnergia: " + ver.getF0Euro()+ver.getF1Euro()+ver.getF2Euro()+ver.getF3Euro());
-                    row.put("verificaSpesaMateriaEnergia", ver.getF0Euro()+ver.getF1Euro()+ver.getF2Euro()+ver.getF3Euro() + ver.getF1PerdEuro() + ver.getF2PerdEuro() + ver.getF3PerdEuro() + ver.getDispacciamento() + ver.getEuroPicco() + ver.getEuroFuoriPicco());
+                    row.put("verificaSpesaMateriaEnergia", ver.getF0Euro()+ver.getF1Euro()+ver.getF2Euro()+ver.getF3Euro() + ver.getF1PerdEuro() + ver.getF2PerdEuro() + ver.getF3PerdEuro() + ver.getEuroPicco() + ver.getEuroFuoriPicco());
+                             */
+                    row.put("verificaSpesaMateriaEnergia", b.getSpeseEne()-b.getDispacciamento());
 
                     System.out.println("[DEBUG PBIService] altro: " + nz(b.getPenRCapI()));
                     row.put("altro", nz(b.getPenRCapI()));

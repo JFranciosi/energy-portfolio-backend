@@ -10,13 +10,7 @@ import miesgroup.mies.webdev.Service.bolletta.BudgetBollettaService;
 import miesgroup.mies.webdev.Service.pbi.PowerBIService;
 
 import java.net.http.HttpResponse;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
-import java.time.Month;
-import java.time.format.TextStyle;
 import java.util.*;
-import java.io.IOException;
 
 import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.node.*;
@@ -27,7 +21,6 @@ import com.fasterxml.jackson.databind.node.*;
 public class ProxyResource {
     // Dataset e tabelle
     private static final String DATASET_ID_CONTROLLO = "5ee09b8c-9750-4fee-9050-eb4f59de94f5";
-    private static final String EnergyPortfolio_Complete_Dataset = "8e97a316-dce7-4c03-b281-0fa027c13ab4";
     private static final String BUDGET_DATASET = "b6257f45-90e0-4ef3-910f-86e3bf6aaba2";
     private static final String ARTICOLI   = "dettaglio_articolo";
     private static final String BOLLETTE   = "bolletta_pod";
