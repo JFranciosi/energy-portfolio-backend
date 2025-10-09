@@ -69,6 +69,7 @@ public class FileService {
     @Inject LetturaBolletta letturaBolletta;
     @Inject Lettura lettura;
     @Inject verBollettaPodService verBollettaService;
+    @Inject LetturaBollettaNuova letturaBollettaNuova;
 
     // ─────────────────────────────────────────────────────────────
     // DEBUG UTILS
@@ -108,6 +109,9 @@ public class FileService {
     // ENTRY POINT
     // ======================================================
     public void processaBolletta(byte[] xmlData, Document doc, String idPod) {
+        System.out.println("[processaBollettaConRicalcolo] Bollettina nuova formativa: " + idPod);
+        letturaBollettaNuova.extractValuesFromXmlNewFormat(xmlData, idPod);
+        /*
         // 1) Periodo totale
         Periodo periodoTotale = lettura.extractPeriodo(doc);  // es: 01/01/2024 -> 31/10/2024
 
@@ -177,7 +181,7 @@ public class FileService {
 
             } else {
                 // NORMALE
-                letturaBolletta.extractValuesFromXmlA2A(xmlData, idPod);
+                    letturaBolletta.extractValuesFromXmlA2A(xmlData, idPod);
 
                 // 🔵 Budget Sync: mesi del documento (tipicamente 1)
                 syncBudgetAndBudgetAll(
@@ -187,7 +191,7 @@ public class FileService {
             }
         } else {
             // NORMALE
-            letturaBolletta.extractValuesFromXmlA2A(xmlData, idPod);
+                letturaBolletta.extractValuesFromXmlA2A(xmlData, idPod);
 
             // 🔵 Budget Sync: mesi del documento (tipicamente 1)
             syncBudgetAndBudgetAll(
@@ -195,7 +199,17 @@ public class FileService {
                     monthsBetweenInclusive(toYearMonth(periodoTotale.getInizio()), toYearMonth(periodoTotale.getFine()))
             );
         }
+        */
     }
+
+    private boolean isNuovoFormatoBolletta(Periodo periodo) {
+        // Semplice check: da luglio 2025 in poi bolletta considerata nuova
+        Calendar cutoff = Calendar.getInstance();
+        cutoff.set(2025, Calendar.JUNE, 30, 23, 59, 59);
+        Date cutoffDate = cutoff.getTime();
+        return periodo.getInizio().after(cutoffDate) || periodo.getFine().after(cutoffDate);
+    }
+
 
     // ======================================================
     // DECISIONE TIPO BOLLETTA (range vs periodicità)
