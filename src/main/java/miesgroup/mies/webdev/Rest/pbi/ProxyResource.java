@@ -459,7 +459,7 @@ public class ProxyResource {
 
     @POST
     @Path("/budget/consolidato/push")
-    @Consumes(MediaType.APPLICATION_JSON)
+    //@Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response pushBudgetConsolidato(
             @QueryParam("year") Integer year,
