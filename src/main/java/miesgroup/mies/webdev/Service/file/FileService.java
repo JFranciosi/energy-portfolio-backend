@@ -108,31 +108,110 @@ public class FileService {
     // ======================================================
     // ENTRY POINT
     // ======================================================
+    // ======================================================
+// ENTRY POINT - VERSIONE AGGIORNATA PER DUAL FORMAT
+// ======================================================
     public void processaBolletta(byte[] xmlData, Document doc, String idPod) {
-        System.out.println("[processaBollettaConRicalcolo] Bollettina nuova formativa: " + idPod);
-        letturaBollettaNuova.extractValuesFromXmlNewFormat(xmlData, idPod);
-        /*
-        // 1) Periodo totale
-        Periodo periodoTotale = lettura.extractPeriodo(doc);  // es: 01/01/2024 -> 31/10/2024
+        logTitle("processaBolletta - Inizio analisi");
 
-        // 2) Periodicità dal POD (DB) — fallback: "Mensile"
-        String periodicita = podRepo.getPeriodicitaByPodId(idPod); // es. "Mensile", "Bimestrale", ...
+        // 1) PROVA AD ESTRARRE IL PERIODO CON ENTRAMBI I METODI
+        Periodo periodoTotale = null;
+        boolean isNewFormat = false;
 
-        // 3) Prima stima: se range mesi > periodicità -> sospetto ricalcolo
+        try {
+            // Prova prima con il metodo nuovo
+            periodoTotale = letturaBollettaNuova.extractPeriodo(doc);
+            if (periodoTotale != null && periodoTotale.getInizio() != null) {
+                logOk("Periodo estratto con metodo NUOVO");
+                isNewFormat = true;
+            }
+        } catch (Exception e) {
+            logWarn("Metodo nuovo fallito: " + e.getMessage());
+        }
+
+        if (periodoTotale == null) {
+            try {
+                // Fallback al metodo vecchio
+                periodoTotale = lettura.extractPeriodo(doc);
+                if (periodoTotale != null && periodoTotale.getInizio() != null) {
+                    logOk("Periodo estratto con metodo VECCHIO");
+                    isNewFormat = false;
+                }
+            } catch (Exception e) {
+                logWarn("Metodo vecchio fallito: " + e.getMessage());
+            }
+        }
+
+        if (periodoTotale == null || periodoTotale.getInizio() == null) {
+            logWarn("⚠️ Impossibile estrarre periodo. Abbandono.");
+            return;
+        }
+
+        logKV("Periodo estratto", fmt(periodoTotale.getInizio()) + " → " + fmt(periodoTotale.getFine()));
+
+        // 2) DETERMINA IL FORMATO IN BASE ALLA DATA
+        // Se il periodo inizia da giugno 2025 in poi → nuovo formato
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(periodoTotale.getFine()); // usa la data di fine
+        int anno = cal.get(Calendar.YEAR);
+        int mese = cal.get(Calendar.MONTH) + 1; // Calendar.MONTH è 0-based
+
+        // Giugno 2025 o dopo → nuovo formato
+        boolean useNewFormat = (anno > 2025) || (anno == 2025 && mese >= 6);
+
+        logKV("Anno bolletta", anno);
+        logKV("Mese bolletta", mese);
+        logKV("Formato da usare", useNewFormat ? "NUOVO" : "VECCHIO");
+
+        // 3) SE È NUOVO FORMATO, ESEGUI DIRETTAMENTE (SENZA RICALCOLI)
+        if (useNewFormat) {
+            logOk("📋 Processamento con NUOVO FORMATO (ignora ricalcoli)");
+            letturaBollettaNuova.extractValuesFromXmlNewFormat(xmlData, idPod);
+
+            // 🔵 Budget Sync: mesi del documento
+            syncBudgetAndBudgetAll(
+                    idPod,
+                    monthsBetweenInclusive(
+                            toYearMonth(periodoTotale.getInizio()),
+                            toYearMonth(periodoTotale.getFine())
+                    )
+            );
+
+            try {
+                verBollettaService.verificaBolletteDaPeriodo(idPod, periodoTotale.getInizio(), periodoTotale.getFine());
+                logOk("Verifica A2A completata per POD: " + idPod);
+            } catch (Exception e) {
+                logWarn("Errore verifica A2A: " + e.getMessage());
+            }
+
+            logOk("✅ Processamento NUOVO formato completato");
+            return;
+        }
+
+        // 4) FORMATO VECCHIO: APPLICA LOGICA RICALCOLO
+        logOk("📋 Processamento con VECCHIO FORMATO (con gestione ricalcoli)");
+
+        // Periodicità dal POD (DB) — fallback: "Mensile"
+        String periodicita = podRepo.getPeriodicitaByPodId(idPod);
+        logKV("Periodicità POD", periodicita);
+
+        // Prima stima: se range mesi > periodicità → sospetto ricalcolo
         TipoBolletta tipo = valutaTipoBolletta(periodoTotale, periodicita);
 
-        // 4) Ricerca sicura: "RICALCOLI  PERIODO: dd.mm.yyyy – dd.mm.yyyy"
-        Periodo periodoRicalcolo = extractPeriodoRicalcoli(doc); // può essere null
+        // Ricerca sicura: "RICALCOLI PERIODO: dd.mm.yyyy – dd.mm.yyyy"
+        Periodo periodoRicalcolo = extractPeriodoRicalcoli(doc);
         if (periodoRicalcolo != null) {
             tipo = TipoBolletta.RICALCOLO;
+            logOk("✅ Trovato RICALCOLI PERIODO nel documento");
         }
+
         logKV("Tipo bolletta", tipo.name());
 
-        // 5) Mese/i correnti effettivi = (mesi in periodoTotale) – (mesi in periodoRicalcolo)
+        // Mese/i correnti effettivi = (mesi in periodoTotale) – (mesi in periodoRicalcolo)
         List<YearMonth> mesiCorrentiEffettivi = trovaMesiCorrentiEffettivi(periodoTotale, periodoRicalcolo);
         logKV("Mesi correnti effettivi", mesiCorrentiEffettivi.toString());
 
-        // 6) Dirama + Budget Sync
+        // 5) DIRAMA + BUDGET SYNC (SOLO PER FORMATO VECCHIO)
         if (tipo == TipoBolletta.RICALCOLO) {
             // Flusso ricalcolo con range confermato
             letturaRicalcoloBolletta.processaBollettaConRicalcolo(
@@ -142,11 +221,12 @@ public class FileService {
                     periodoRicalcolo,
                     periodicita
             );
+
             try {
                 verBollettaService.verificaBolletteDaPeriodo(idPod, periodoTotale.getInizio(), periodoTotale.getFine());
-                System.out.println("[processaBollettaConRicalcolo] Verifica A2A completata per POD: " + idPod);
+                logOk("Verifica A2A completata per POD: " + idPod);
             } catch (Exception e) {
-                System.err.println("[processaBollettaConRicalcolo] Errore verifica A2A: " + e.getMessage());
+                logWarn("Errore verifica A2A: " + e.getMessage());
             }
 
             // 🔵 Budget Sync: mesi ricalcolo + mesi correnti
@@ -157,33 +237,33 @@ public class FileService {
             syncBudgetAndBudgetAll(idPod, target);
 
         } else if (tipo == TipoBolletta.RICALCOLO_SOSPETTO) {
-            // Nessuna riga "RICALCOLI PERIODO", ma range > periodicità: gestisco come ricalcolo "soft"
+            // Nessuna riga "RICALCOLI PERIODO", ma range > periodicità
             if (!mesiCorrentiEffettivi.isEmpty()) {
                 letturaRicalcoloBolletta.processaBollettaConRicalcolo(
                         doc,
                         idPod,
                         periodoTotale,
-                        null, // ricalcolo non confermato nel PDF
+                        null, // ricalcolo non confermato
                         periodicita
                 );
+
                 try {
                     verBollettaService.verificaBolletteDaPeriodo(idPod, periodoTotale.getInizio(), periodoTotale.getFine());
-                    System.out.println("[processaBollettaConRicalcolo] Verifica A2A completata per POD: " + idPod);
+                    logOk("Verifica A2A completata per POD: " + idPod);
                 } catch (Exception e) {
-                    System.err.println("[processaBollettaConRicalcolo] Errore verifica A2A: " + e.getMessage());
+                    logWarn("Errore verifica A2A: " + e.getMessage());
                 }
 
-                // 🔵 Budget Sync: tutti i mesi coperti dal documento
+                // 🔵 Budget Sync: tutti i mesi del documento
                 syncBudgetAndBudgetAll(
                         idPod,
                         monthsBetweenInclusive(toYearMonth(periodoTotale.getInizio()), toYearMonth(periodoTotale.getFine()))
                 );
-
             } else {
                 // NORMALE
-                    letturaBolletta.extractValuesFromXmlA2A(xmlData, idPod);
+                letturaBolletta.extractValuesFromXmlA2A(xmlData, idPod);
 
-                // 🔵 Budget Sync: mesi del documento (tipicamente 1)
+                // 🔵 Budget Sync: mesi del documento
                 syncBudgetAndBudgetAll(
                         idPod,
                         monthsBetweenInclusive(toYearMonth(periodoTotale.getInizio()), toYearMonth(periodoTotale.getFine()))
@@ -191,16 +271,18 @@ public class FileService {
             }
         } else {
             // NORMALE
-                letturaBolletta.extractValuesFromXmlA2A(xmlData, idPod);
+            letturaBolletta.extractValuesFromXmlA2A(xmlData, idPod);
 
-            // 🔵 Budget Sync: mesi del documento (tipicamente 1)
+            // 🔵 Budget Sync: mesi del documento
             syncBudgetAndBudgetAll(
                     idPod,
                     monthsBetweenInclusive(toYearMonth(periodoTotale.getInizio()), toYearMonth(periodoTotale.getFine()))
             );
         }
-        */
+
+        logOk("✅ Processamento VECCHIO formato completato");
     }
+
 
     private boolean isNuovoFormatoBolletta(Periodo periodo) {
         // Semplice check: da luglio 2025 in poi bolletta considerata nuova

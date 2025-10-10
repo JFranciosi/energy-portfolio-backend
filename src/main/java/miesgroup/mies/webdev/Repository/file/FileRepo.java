@@ -158,17 +158,17 @@ public class FileRepo implements PanacheRepositoryBase<PDFFile, Integer> {
             Double imposte        = getCI(speseMese, "Totale imposte", "TOTALE IMPOSTE");
             Double dispacciamento = getCI(speseMese, "dispacciamento", "Corrispettivi di dispacciamento del", "Corrispettivi di dispacciamento Del.");
 
-            Double f0Euro_ = getCI(speseMese, "Materia energia f0", "Quota vendita", "Materia Energia");
-            Double f1Euro_ = getCI(speseMese, "Materia energia f1", "Quota vendita f1");
-            Double f2Euro_ = getCI(speseMese, "Materia energia f2", "Quota vendita f2");
-            Double f3Euro_ = getCI(speseMese, "Materia energia f3", "Quota vendita f3");
+            Double f0Euro_ = getCI(speseMese, "Materia energia f0", "Quota vendita", "Materia Energia", "F0_Euro");
+            Double f1Euro_ = getCI(speseMese, "Materia energia f1", "Quota vendita f1", "F1_Euro");
+            Double f2Euro_ = getCI(speseMese, "Materia energia f2", "Quota vendita f2", "F2_Euro");
+            Double f3Euro_ = getCI(speseMese, "Materia energia f3", "Quota vendita f3","F3_Euro");
 
-            Double f1PerdEuro_ = getCI(speseMese, "Perdite f1");
-            Double f2PerdEuro_ = getCI(speseMese, "Perdite f2");
-            Double f3PerdEuro_ = getCI(speseMese, "Perdite f3");
+            Double f1PerdEuro_ = getCI(speseMese, "Perdite f1", "F1_Perd_Euro");
+            Double f2PerdEuro_ = getCI(speseMese, "Perdite f2", "F2_Perd_Euro");
+            Double f3PerdEuro_ = getCI(speseMese, "Perdite f3", "F3_Perd_Euro");
 
-            Double euroPicco      = getCI(speseMese, "Picco", "corrispettivo mercato capacità ore picco");
-            Double euroFuoriPicco = getCI(speseMese, "Fuori Picco", "corrispettivo mercato capacità ore fuori");
+            Double euroPicco      = getCI(speseMese, "Picco", "corrispettivo mercato capacità ore picco", "Euro_FuoriPicco");
+            Double euroFuoriPicco = getCI(speseMese, "Fuori Picco", "corrispettivo mercato capacità ore fuori", "Euro_Picco");
 
             // --- Energia Verde ---
             Double enVeEuro = getCI(speseMese, "Corrispettivo variabile", "Corrispettivo variabile di vendita energia");
@@ -188,7 +188,7 @@ public class FileRepo implements PanacheRepositoryBase<PDFFile, Integer> {
                     euroPicco, euroFuoriPicco, dispacciamento
             );
 
-            Double penRCapI = getCI(speseMese, "Altro", "Penalità", "Penalita", "PENALITA_REATTIVA");
+            Double penRCapI = getCI(speseMese, "Altro", "Penalità", "Penalita", "PENALITA_REATTIVA", "Pen_RCapI");
 
             Double f1Pen33 = getCI(speseMese, "F1Penale33");
             Double f1Pen75 = getCI(speseMese, "F1Penale75");
@@ -217,14 +217,14 @@ public class FileRepo implements PanacheRepositoryBase<PDFFile, Integer> {
 
             Map<String, Double> kwhMese = kwhNorm.getOrDefault(mese, Collections.emptyMap());
             Double f0Kwh   = getCI(kwhMese, "Materia energia f0", "Materia energia");
-            Double f1Kwh   = getCI(kwhMese, "Materia energia f1");
-            Double f2Kwh   = getCI(kwhMese, "Materia energia f2");
-            Double f3Kwh   = getCI(kwhMese, "Materia energia f3");
-            Double f1PerdK = getCI(kwhMese, "Perdite f1");
-            Double f2PerdK = getCI(kwhMese, "Perdite f2");
-            Double f3PerdK = getCI(kwhMese, "Perdite f3");
-            Double piccoKwh     = getCI(kwhMese, "Picco");
-            Double fuoriPiccoKwh= getCI(kwhMese, "Fuori Picco");
+            Double f1Kwh   = getCI(kwhMese, "Materia energia f1", "f1_kwh");
+            Double f2Kwh   = getCI(kwhMese, "Materia energia f2", "f2_kwh");
+            Double f3Kwh   = getCI(kwhMese, "Materia energia f3", "f3_kwh");
+            Double f1PerdK = getCI(kwhMese, "Perdite f1", "f1_perdite_kwh");
+            Double f2PerdK = getCI(kwhMese, "Perdite f2", "f2_perdite_kwh");
+            Double f3PerdK = getCI(kwhMese, "Perdite f3", "f3_perdite_kwh");
+            Double piccoKwh     = getCI(kwhMese, "Picco", "Picco_kwh");
+            Double fuoriPiccoKwh= getCI(kwhMese, "Fuori Picco", "FuoriPicco_kwh");
 
             if (idPod == null || idPod.trim().isEmpty()) {
                 System.err.printf("ATTENZIONE: idPod nullo o vuoto, non salvo. nomeBolletta=%s, mese=%s, anno=%s%n",

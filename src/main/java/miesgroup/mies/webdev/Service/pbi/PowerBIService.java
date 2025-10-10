@@ -1076,7 +1076,7 @@ public class PowerBIService {
                 row.put("speseEnergia", nz(b.getSpeseEne()-b.getDispacciamento()));
 
                 System.out.println("[DEBUG PBIService] trasporti: " + nz(b.getSpeseTrasp()));
-                row.put("trasporti", nz(b.getSpeseTrasp()));
+                row.put("trasporti", nz(b.getSpeseTrasp() - b.getPenRCapI()));
 
                 System.out.println("[DEBUG PBIService] oneri: " + nz(b.getOneri()));
                 row.put("oneri", nz(b.getOneri()));
@@ -1134,7 +1134,7 @@ public class PowerBIService {
 
                     System.out.println("[DEBUG PBIService] verificaTrasporti: " + nz(ver.getSpeseTrasp()));
                     //row.put("verificaTrasporti", nz(ver.getSpeseTrasp()));b.getSpeseTrasp()
-                    row.put("verificaTrasporti", nz(b.getSpeseTrasp()));
+                    row.put("verificaTrasporti", nz(b.getSpeseTrasp() - b.getPenRCapI()));
 
                     System.out.println("[DEBUG PBIService] verificaImposte: " + nz(ver.getImposte()));
                     row.put("verificaImposte", nz(ver.getImposte()));

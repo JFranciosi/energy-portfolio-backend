@@ -37,10 +37,13 @@ public class LetturaBollettaNuova {
     public void extractValuesFromXmlNewFormat(byte[] xmlData, String idPod) {
         LogCustom.logTitle("=== ESTRAZIONE BOLLETTA NUOVO FORMATO ===");
 
-        // Converti XML in Document
+        // ========================================================================
+        // FASE 1: ESTRAZIONE DATI DAL DOCUMENTO XML
+        // ========================================================================
+
         Document doc = convertBytesToDocument(xmlData);
 
-        // Chiama i metodi di estrazione principali
+        // Dati principali
         String numeroBolletta = extractBollettaNome(doc);
         Periodo periodo = extractPeriodo(doc);
         String pod = extractPod(doc);
@@ -48,27 +51,67 @@ public class LetturaBollettaNuova {
         Double potenza = extractPotenzaImpegnata(doc);
         Integer consumoTotale = extractConsumoTotaleFatturato(doc);
         Double totale = extractTotaleDaPagare(doc);
+
+        // Letture e consumi
         Map<String, Map<String, Map<String, Integer>>> letture = extractLetture(doc);
-        Map<String, Map<String, Double>> spese = extractSpesePerMese(doc);
-        Map<String, Map<String, Double>> componenti = extractDettaglioComponenti(doc);
-        Map<String, Map<String, Double>> speseDettagliate = extractSpeseDettagliate(doc);
         Map<String, Object> datiLettureConsumi = extractDatiLettureConsumi(doc);
 
+        // Spese (metodo vecchio per compatibilità)
+        Map<String, Map<String, Double>> spese = extractSpesePerMese(doc);
+        Map<String, Map<String, Double>> componenti = extractDettaglioComponenti(doc);
+
+        // *** NUOVO: Estrazione spese dettagliate CON quantità ***
+        Map<String, Object> speseDettagliateComplete = extractSpeseDettagliateConQuantita(doc);
+        Map<String, Map<String, Double>> speseEuro = (Map<String, Map<String, Double>>) speseDettagliateComplete.get("speseEuro");
+        Map<String, Map<String, Double>> quantitaKwh = (Map<String, Map<String, Double>>) speseDettagliateComplete.get("quantitaKwh");
+
         // ========================================================================
-        // PREPARAZIONE DATI PER IL SALVATAGGIO NEL DATABASE
+        // FASE 2: MAPPATURA CAMPI DATABASE DA SPESE DETTAGLIATE
         // ========================================================================
 
-        // Combina le letture dai due metodi di estrazione
+        Map<String, Double> campiDbDettagliati = mapSpeseDettagliateToDbFields(speseEuro, quantitaKwh);
+
+        LogCustom.logTitle("--- CAMPI DATABASE MAPPATI ---");
+        if (campiDbDettagliati != null && !campiDbDettagliati.isEmpty()) {
+            campiDbDettagliati.forEach((chiave, valore) ->
+                    LogCustom.logKV(chiave, valore != null ? String.format("%.2f", valore) : "NULL")
+            );
+        } else {
+            LogCustom.logWarn("Nessun campo database mappato!");
+        }
+
+        // ========================================================================
+        // FASE 3: PREPARAZIONE DATI PER IL SALVATAGGIO
+        // ========================================================================
+
+        // Combina le letture
         Map<String, Map<String, Map<String, Integer>>> lettureMeseFinale = combinaLetture(letture, datiLettureConsumi);
 
-        // Combina le spese dai vari metodi
-        Map<String, Map<String, Double>> spesePerMeseFinale = combinaSpese(spese, componenti, speseDettagliate);
+        // Combina le spese base
+        Map<String, Map<String, Double>> spesePerMeseFinale = combinaSpese(spese, componenti, speseEuro);
 
-        // Prepara kWhPerMese dai dati estratti
-        Map<String, Map<String, Double>> kWhPerMese = preparaKWhPerMese(datiLettureConsumi, speseDettagliate);
+        // Estrai il mese corrente dal periodo
+        String meseCorrente = estraiMeseDaPeriodo(periodo);
+
+        // Integra i campi dettagliati nelle spese per mese
+        if (meseCorrente != null && campiDbDettagliati != null && !campiDbDettagliati.isEmpty()) {
+            Map<String, Double> speseMese = spesePerMeseFinale.computeIfAbsent(meseCorrente, k -> new HashMap<>());
+
+            // Aggiungi TUTTI i campi mappati
+            speseMese.putAll(campiDbDettagliati);
+
+            LogCustom.logOk("✅ Integrati " + campiDbDettagliati.size() + " campi dettagliati per il mese " + meseCorrente);
+        } else {
+            LogCustom.logWarn("⚠️ Impossibile integrare campi dettagliati:");
+            LogCustom.logKV("  meseCorrente", meseCorrente);
+            LogCustom.logKV("  campiDbDettagliati.size()", campiDbDettagliati != null ? campiDbDettagliati.size() : 0);
+        }
+
+        // Prepara kWhPerMese con i dati estratti
+        Map<String, Map<String, Double>> kWhPerMese = preparaKWhPerMese(datiLettureConsumi, campiDbDettagliati, meseCorrente);
 
         // ========================================================================
-        // STAMPA RIEPILOGO DATI ESTRATTI
+        // FASE 4: STAMPA RIEPILOGO COMPLETO
         // ========================================================================
 
         LogCustom.logTitle("=== RIEPILOGO DATI ESTRATTI ===");
@@ -84,6 +127,7 @@ public class LetturaBollettaNuova {
             LogCustom.logKV("Periodo Inizio", periodo.getInizio().toString());
             LogCustom.logKV("Periodo Fine", periodo.getFine().toString());
             LogCustom.logKV("Anno", periodo.getAnno());
+            LogCustom.logKV("Mese", meseCorrente);
         } else {
             LogCustom.logWarn("Periodo: NON TROVATO");
         }
@@ -104,19 +148,7 @@ public class LetturaBollettaNuova {
             LogCustom.logWarn("Nessuna lettura estratta");
         }
 
-        // Stampa spese per mese
-        LogCustom.logTitle("--- SPESE PER MESE ---");
-        if (spesePerMeseFinale != null && !spesePerMeseFinale.isEmpty()) {
-            for (Map.Entry<String, Map<String, Double>> mese : spesePerMeseFinale.entrySet()) {
-                LogCustom.logOk("Mese: " + mese.getKey());
-                for (Map.Entry<String, Double> voce : mese.getValue().entrySet()) {
-                    LogCustom.logKV("  " + voce.getKey(), voce.getValue() + " €");
-                }
-            }
-        } else {
-            LogCustom.logWarn("Nessuna spesa per mese estratta");
-        }
-
+        // Stampa dati letture e consumi dettagliati
         LogCustom.logTitle("--- DATI LETTURE E CONSUMI DETTAGLIATI ---");
         if (datiLettureConsumi != null && !datiLettureConsumi.isEmpty()) {
             LogCustom.logKV("Matricola Contatore", (String) datiLettureConsumi.get("matricolaContatore"));
@@ -130,10 +162,45 @@ public class LetturaBollettaNuova {
             LogCustom.logWarn("Nessun dato letture e consumi dettagliato estratto");
         }
 
+        // Stampa riepilogo campi critici per DB
+        LogCustom.logTitle("--- CAMPI CRITICI PER DATABASE ---");
+        if (campiDbDettagliati != null) {
+            LogCustom.logKV("Spese_Ene", String.format("%.2f €", campiDbDettagliati.getOrDefault("Spese_Ene", 0.0)));
+            LogCustom.logKV("Spese_Trasp", String.format("%.2f €", campiDbDettagliati.getOrDefault("Spese_Trasp", 0.0)));
+            LogCustom.logKV("Oneri", String.format("%.2f €", campiDbDettagliati.getOrDefault("Oneri", 0.0)));
+            LogCustom.logKV("Imposte", String.format("%.2f €", campiDbDettagliati.getOrDefault("Imposte", 0.0)));
+            LogCustom.logKV("Generation", String.format("%.2f €", campiDbDettagliati.getOrDefault("Generation", 0.0)));
+            LogCustom.logKV("Dispacciamento", String.format("%.2f €", campiDbDettagliati.getOrDefault("Dispacciamento", 0.0)));
+        }
+
+        // Stampa spese per mese (solo totali, non tutto)
+        LogCustom.logTitle("--- SPESE PER MESE (RIEPILOGO) ---");
+        if (spesePerMeseFinale != null && !spesePerMeseFinale.isEmpty()) {
+            for (Map.Entry<String, Map<String, Double>> mese : spesePerMeseFinale.entrySet()) {
+                LogCustom.logOk("Mese: " + mese.getKey() + " (" + mese.getValue().size() + " voci)");
+            }
+        } else {
+            LogCustom.logWarn("Nessuna spesa per mese estratta");
+        }
+
+        // Stampa kWh per mese
+        LogCustom.logTitle("--- kWh PER MESE ---");
+        if (kWhPerMese != null && !kWhPerMese.isEmpty()) {
+            for (Map.Entry<String, Map<String, Double>> mese : kWhPerMese.entrySet()) {
+                LogCustom.logOk("Mese: " + mese.getKey());
+                for (Map.Entry<String, Double> voce : mese.getValue().entrySet()) {
+                    Double valore = voce.getValue();
+                    LogCustom.logKV("  " + voce.getKey(), valore != null ? String.format("%.2f kWh", valore) : "NULL");
+                }
+            }
+        } else {
+            LogCustom.logWarn("Nessun kWh per mese estratto");
+        }
+
         LogCustom.logTitle("=== FINE RIEPILOGO ===");
 
         // ========================================================================
-        // SALVATAGGIO NEL DATABASE
+        // FASE 5: SALVATAGGIO NEL DATABASE
         // ========================================================================
 
         if (periodo != null && numeroBolletta != null && pod != null) {
@@ -149,15 +216,126 @@ public class LetturaBollettaNuova {
                 );
                 LogCustom.logOk("✅ Dati salvati con successo nel database");
             } catch (Exception e) {
-                LogCustom.logWarn("⛔️ Errore durante il salvataggio nel database: " + e.getMessage());
+                LogCustom.warn("⛔️ Errore durante il salvataggio nel database: " + e.getMessage());
                 e.printStackTrace();
             }
         } else {
-            LogCustom.logWarn("⚠️ Salvataggio database saltato: dati essenziali mancanti (periodo, numeroBolletta o POD)");
+            LogCustom.logWarn("⚠️ Salvataggio database saltato: dati essenziali mancanti");
+            LogCustom.logKV("  - periodo", periodo != null ? "OK" : "MANCANTE");
+            LogCustom.logKV("  - numeroBolletta", numeroBolletta != null ? "OK" : "MANCANTE");
+            LogCustom.logKV("  - pod", pod != null ? "OK" : "MANCANTE");
         }
 
-        LogCustom.logOk("Processata nuova bolletta per POD " + idPod + ", n. " + numeroBolletta);
+        LogCustom.logOk("✅ Processamento completato per POD " + idPod + ", bolletta n. " + numeroBolletta);
     }
+
+// ============================================================================
+// METODO HELPER: ESTRAI MESE DA PERIODO
+// ============================================================================
+
+    private String estraiMeseDaPeriodo(Periodo periodo) {
+        if (periodo == null || periodo.getFine() == null) {
+            return null;
+        }
+
+        SimpleDateFormat sdf = new SimpleDateFormat("MMMM", Locale.ITALIAN);
+        return sdf.format(periodo.getFine()).toLowerCase();
+    }
+
+// ============================================================================
+// METODO HELPER: PREPARA kWh PER MESE (AGGIORNATO CON NUOVI CAMPI)
+// ============================================================================
+
+    private Map<String, Map<String, Double>> preparaKWhPerMese(
+            Map<String, Object> datiLettureConsumi,
+            Map<String, Double> campiDbDettagliati,
+            String meseCorrente) {
+
+        Map<String, Map<String, Double>> kWhPerMese = new HashMap<>();
+
+        if (meseCorrente == null) {
+            LogCustom.logWarn("Mese corrente null, kWhPerMese non preparato");
+            return kWhPerMese;
+        }
+
+        Map<String, Double> kwhMese = kWhPerMese.computeIfAbsent(meseCorrente, k -> new HashMap<>());
+
+        // Aggiungi i kWh dai campi dettagliati
+        if (campiDbDettagliati != null) {
+            addIfNotNull(kwhMese, "Materia energia f0", campiDbDettagliati.get("f0_kwh"));
+            addIfNotNull(kwhMese, "Materia energia f1", campiDbDettagliati.get("f1_kwh"));
+            addIfNotNull(kwhMese, "Materia energia f2", campiDbDettagliati.get("f2_kwh"));
+            addIfNotNull(kwhMese, "Materia energia f3", campiDbDettagliati.get("f3_kwh"));
+            addIfNotNull(kwhMese, "Perdite f1", campiDbDettagliati.get("f1_perdite_kwh"));
+            addIfNotNull(kwhMese, "Perdite f2", campiDbDettagliati.get("f2_perdite_kwh"));
+            addIfNotNull(kwhMese, "Perdite f3", campiDbDettagliati.get("f3_perdite_kwh"));
+            addIfNotNull(kwhMese, "Picco", campiDbDettagliati.get("Picco_kwh"));
+            addIfNotNull(kwhMese, "Fuori Picco", campiDbDettagliati.get("FuoriPicco_kwh"));
+            addIfNotNull(kwhMese, "Totale Perdite", campiDbDettagliati.get("TOT_Att_Perd"));
+        }
+
+        return kWhPerMese;
+    }
+
+    private void addIfNotNull(Map<String, Double> map, String key, Double value) {
+        if (value != null) {
+            map.put(key, value);
+        }
+    }
+
+// ============================================================================
+// METODO HELPER: PREPARA kWh PER MESE (AGGIORNATO)
+// ============================================================================
+
+    private Map<String, Map<String, Double>> preparaKWhPerMese(
+            Map<String, Object> datiLettureConsumi,
+            Map<String, Map<String, Double>> speseDettagliate,
+            Map<String, Double> campiDbDettagliati) {
+
+        Map<String, Map<String, Double>> kWhPerMese = new HashMap<>();
+        String mese = "giugno"; // TODO: estrarre dal periodo
+        Map<String, Double> kwhMese = kWhPerMese.computeIfAbsent(mese, k -> new HashMap<>());
+
+        // Aggiungi i kWh dai campi dettagliati
+        if (campiDbDettagliati != null) {
+            // f0_kwh
+            if (campiDbDettagliati.containsKey("f0_kwh")) {
+                kwhMese.put("Materia energia f0", campiDbDettagliati.get("f0_kwh"));
+            }
+            // f1_kwh
+            if (campiDbDettagliati.containsKey("f1_kwh")) {
+                kwhMese.put("Materia energia f1", campiDbDettagliati.get("f1_kwh"));
+            }
+            // f2_kwh
+            if (campiDbDettagliati.containsKey("f2_kwh")) {
+                kwhMese.put("Materia energia f2", campiDbDettagliati.get("f2_kwh"));
+            }
+            // f3_kwh
+            if (campiDbDettagliati.containsKey("f3_kwh")) {
+                kwhMese.put("Materia energia f3", campiDbDettagliati.get("f3_kwh"));
+            }
+            // Perdite
+            if (campiDbDettagliati.containsKey("f1_perdite_kwh")) {
+                kwhMese.put("Perdite f1", campiDbDettagliati.get("f1_perdite_kwh"));
+            }
+            if (campiDbDettagliati.containsKey("f2_perdite_kwh")) {
+                kwhMese.put("Perdite f2", campiDbDettagliati.get("f2_perdite_kwh"));
+            }
+            if (campiDbDettagliati.containsKey("f3_perdite_kwh")) {
+                kwhMese.put("Perdite f3", campiDbDettagliati.get("f3_perdite_kwh"));
+            }
+            // Picco/Fuori Picco
+            if (campiDbDettagliati.containsKey("Picco_kwh")) {
+                kwhMese.put("Picco", campiDbDettagliati.get("Picco_kwh"));
+            }
+            if (campiDbDettagliati.containsKey("FuoriPicco_kwh")) {
+                kwhMese.put("Fuori Picco", campiDbDettagliati.get("FuoriPicco_kwh"));
+            }
+        }
+
+        return kWhPerMese;
+    }
+
 
 // ============================================================================
 // METODI HELPER PER PREPARAZIONE DATI DATABASE
@@ -1303,5 +1481,521 @@ public class LetturaBollettaNuova {
         LogCustom.logOk("Dati letture e consumi estratti completamente");
         return datiLetture;
     }
+
+    // ============================================================================
+// METODO HELPER PER MAPPARE SPESE DETTAGLIATE AI CAMPI DATABASE
+// ============================================================================
+
+    // ============================================================================
+// METODO HELPER PER MAPPARE SPESE DETTAGLIATE AI CAMPI DATABASE
+// ============================================================================
+
+    private Map<String, Double> mapSpeseDettagliateToDbFields(
+            Map<String, Map<String, Double>> speseEuro,
+            Map<String, Map<String, Double>> quantitaKwh) {
+
+        LogCustom.logTitle("=== MAPPATURA CAMPI DATABASE ===");
+
+        Map<String, Double> campiDb = new HashMap<>();
+
+        if (speseEuro == null || speseEuro.isEmpty()) {
+            LogCustom.logWarn("Spese Euro vuote, mapping saltato");
+            return campiDb;
+        }
+
+        // ==== VENDITA ENERGIA ====
+        Map<String, Double> vendita = speseEuro.getOrDefault("Vendita Energia", new HashMap<>());
+        Map<String, Double> venditaKwh = quantitaKwh.getOrDefault("Vendita Energia", new HashMap<>());
+
+        // En_Ve_Euro - Corrispettivo variabile vendita energia verde
+        Double enVeEuro = getByKeyContains(vendita, "Corrispettivo", "variabile");
+        if (enVeEuro == null) enVeEuro = getByKeyContains(vendita, "verde");
+        campiDb.put("Corrispettivo variabile", enVeEuro);
+        LogCustom.logKV("Corrispettivo variabile", enVeEuro != null ? enVeEuro + " €" : "NULL");
+
+        // F0_Euro e f0_kwh - Materia energia (senza fascia F1/F2/F3)
+        Double f0Euro = getByKeyContains(vendita, "Materia energia", "!F1", "!F2", "!F3", "!Perdite");
+        Double f0Kwh = getByKeyContains(venditaKwh, "Materia energia", "!F1", "!F2", "!F3", "!Perdite");
+        campiDb.put("F0_Euro", f0Euro);
+        campiDb.put("f0_kwh", f0Kwh);
+        LogCustom.logKV("F0", (f0Euro != null ? f0Euro + " €" : "NULL") + " / " + (f0Kwh != null ? f0Kwh + " kWh" : "NULL"));
+
+        // F1_Euro e f1_kwh - Materia Energia F1
+        Double f1Euro = getByKeyContains(vendita, "Materia Energia F1");
+        Double f1Kwh = getByKeyContains(venditaKwh, "Materia Energia F1");
+        campiDb.put("F1_Euro", f1Euro);
+        campiDb.put("f1_kwh", f1Kwh);
+        LogCustom.logKV("F1", (f1Euro != null ? f1Euro + " €" : "NULL") + " / " + (f1Kwh != null ? f1Kwh + " kWh" : "NULL"));
+
+        // F1_Perd_Euro e f1_perdite_kwh - Perdite Rete F1
+        Double f1PerdEuro = getByKeyContains(vendita, "Perdite", "F1");
+        Double f1PerdKwh = getByKeyContains(venditaKwh, "Perdite", "F1");
+        campiDb.put("F1_Perd_Euro", f1PerdEuro);
+        campiDb.put("f1_perdite_kwh", f1PerdKwh);
+        LogCustom.logKV("F1 Perdite", (f1PerdEuro != null ? f1PerdEuro + " €" : "NULL") + " / " + (f1PerdKwh != null ? f1PerdKwh + " kWh" : "NULL"));
+
+        // F2_Euro e f2_kwh - Materia Energia F2
+        Double f2Euro = getByKeyContains(vendita, "Materia Energia F2");
+        Double f2Kwh = getByKeyContains(venditaKwh, "Materia Energia F2");
+        campiDb.put("F2_Euro", f2Euro);
+        campiDb.put("f2_kwh", f2Kwh);
+        LogCustom.logKV("F2", (f2Euro != null ? f2Euro + " €" : "NULL") + " / " + (f2Kwh != null ? f2Kwh + " kWh" : "NULL"));
+
+        // F2_Perd_Euro e f2_perdite_kwh - Perdite Rete F2
+        Double f2PerdEuro = getByKeyContains(vendita, "Perdite", "F2");
+        Double f2PerdKwh = getByKeyContains(venditaKwh, "Perdite", "F2");
+        campiDb.put("F2_Perd_Euro", f2PerdEuro);
+        campiDb.put("f2_perdite_kwh", f2PerdKwh);
+        LogCustom.logKV("F2 Perdite", (f2PerdEuro != null ? f2PerdEuro + " €" : "NULL") + " / " + (f2PerdKwh != null ? f2PerdKwh + " kWh" : "NULL"));
+
+        // F3_Euro e f3_kwh - Materia Energia F3
+        Double f3Euro = getByKeyContains(vendita, "Materia Energia F3");
+        Double f3Kwh = getByKeyContains(venditaKwh, "Materia Energia F3");
+        campiDb.put("F3_Euro", f3Euro);
+        campiDb.put("f3_kwh", f3Kwh);
+        LogCustom.logKV("F3", (f3Euro != null ? f3Euro + " €" : "NULL") + " / " + (f3Kwh != null ? f3Kwh + " kWh" : "NULL"));
+
+        // F3_Perd_Euro e f3_perdite_kwh - Perdite Rete F3
+        Double f3PerdEuro = getByKeyContains(vendita, "Perdite", "F3");
+        Double f3PerdKwh = getByKeyContains(venditaKwh, "Perdite", "F3");
+        campiDb.put("F3_Perd_Euro", f3PerdEuro);
+        campiDb.put("f3_perdite_kwh", f3PerdKwh);
+        LogCustom.logKV("F3 Perdite", (f3PerdEuro != null ? f3PerdEuro + " €" : "NULL") + " / " + (f3PerdKwh != null ? f3PerdKwh + " kWh" : "NULL"));
+
+        // Dispacciamento - USA CHIAVE CHE FileRepo CERCA
+        Double dispacciamento = getByKeyContains(vendita, "Dispacciamento");
+        campiDb.put("dispacciamento", dispacciamento);
+        campiDb.put("Corrispettivi di dispacciamento del", dispacciamento);
+        LogCustom.logKV("Dispacciamento", dispacciamento != null ? dispacciamento + " €" : "NULL");
+
+        // Euro_Picco e Picco_kwh - Solo ore PICCO (esclude fuori picco)
+        Double euroPicco = getByKeyContains(vendita, "Mercato", "Capacità", "picco", "!fuori");
+        Double piccoKwh = getByKeyContains(venditaKwh, "Mercato", "Capacità", "picco", "!fuori");
+        campiDb.put("Euro_Picco", euroPicco);
+        campiDb.put("Picco_kwh", piccoKwh);
+        LogCustom.logKV("Picco", (euroPicco != null ? euroPicco + " €" : "NULL") + " / " + (piccoKwh != null ? piccoKwh + " kWh" : "NULL"));
+
+        // Euro_FuoriPicco e FuoriPicco_kwh - Solo ore FUORI PICCO
+        Double euroFuoriPicco = getByKeyContains(vendita, "Mercato", "Capacità", "fuori");
+        Double fuoriPiccoKwh = getByKeyContains(venditaKwh, "Mercato", "Capacità", "fuori");
+        campiDb.put("Euro_FuoriPicco", euroFuoriPicco);
+        campiDb.put("FuoriPicco_kwh", fuoriPiccoKwh);
+        LogCustom.logKV("Fuori Picco", (euroFuoriPicco != null ? euroFuoriPicco + " €" : "NULL") + " / " + (fuoriPiccoKwh != null ? fuoriPiccoKwh + " kWh" : "NULL"));
+
+        // Totale vendita energia - USA CHIAVI CHE FileRepo CERCA
+        Double totaleVendita = vendita.values().stream()
+                .filter(v -> v != null)
+                .reduce(0.0, Double::sum);
+        campiDb.put("Spese_Ene", totaleVendita);
+        campiDb.put("MATERIA_TOTALE", totaleVendita);
+        campiDb.put("Materia Energia_TOTALE", totaleVendita);
+        campiDb.put("TOTALE_MATERIA", totaleVendita);
+        campiDb.put("Spesa per la materia energia", totaleVendita);
+        LogCustom.logKV("Spese_Ene (totale vendita)", totaleVendita + " €");
+
+        // ==== USO RETE ====
+        Map<String, Double> rete = speseEuro.getOrDefault("Uso Rete", new HashMap<>());
+
+        // QFix_Trasp - QUOTA FISSA
+        Double qFix = getByKeyContains(rete, "QUOTA FISSA");
+        campiDb.put("QFix_Trasp", qFix);
+        campiDb.put("quota fissa trasporti", qFix);
+        LogCustom.logKV("QFix_Trasp", qFix != null ? qFix + " €" : "NULL");
+
+        // QPot_Trasp - QUOTA POTENZA
+        Double qPot = getByKeyContains(rete, "QUOTA POTENZA");
+        campiDb.put("QPot_Trasp", qPot);
+        campiDb.put("quota potenza trasporti", qPot);
+        LogCustom.logKV("QPot_Trasp", qPot != null ? qPot + " €" : "NULL");
+
+        // QVar_Trasp - QUOTA VARIABILE
+        Double qVar = getByKeyContains(rete, "QUOTA VARIABILE", "!Penalità");
+        campiDb.put("QVar_Trasp", qVar);
+        campiDb.put("quota variabile trasporti", qVar);
+        LogCustom.logKV("QVar_Trasp", qVar != null ? qVar + " €" : "NULL");
+
+        // Pen_RCapI - Penalità reattiva capacitiva
+        Double penRCapI = getByKeyContains(rete, "Penalità");
+        campiDb.put("Pen_RCapI", penRCapI);
+        LogCustom.logKV("Pen_RCapI", penRCapI != null ? penRCapI + " €" : "NULL");
+
+        // Totale rete - USA CHIAVI CHE FileRepo CERCA
+        Double totaleRete = rete.values().stream()
+                .filter(v -> v != null)
+                .reduce(0.0, Double::sum);
+        campiDb.put("Spese_Trasp", totaleRete);
+        campiDb.put("TOTALE_TRASPORTI", totaleRete);
+        campiDb.put("Trasporto e Gestione Contatore_TOTALE", totaleRete);
+        LogCustom.logKV("Spese_Trasp (totale rete)", totaleRete + " €");
+
+        // ==== ONERI DI SISTEMA ====
+        Map<String, Double> oneri = speseEuro.getOrDefault("Oneri di Sistema", new HashMap<>());
+
+        // QEnOn_ASOS - QUOTA VARIABILE ASOS
+        Double qEnAsos = getByKeyContains(oneri, "QUOTA VARIABILE", "ASOS");
+        campiDb.put("QEnOn_ASOS", qEnAsos);
+        campiDb.put("quota energia oneri asos", qEnAsos);
+
+        // QFixOn_ASOS - QUOTA FISSA ASOS
+        Double qFixAsos = getByKeyContains(oneri, "QUOTA FISSA", "ASOS");
+        campiDb.put("QFixOn_ASOS", qFixAsos);
+        campiDb.put("quota fissa oneri asos", qFixAsos);
+
+        // QPotOn_ASOS - QUOTA POTENZA ASOS
+        Double qPotAsos = getByKeyContains(oneri, "QUOTA POTENZA", "ASOS");
+        campiDb.put("QPotOn_ASOS", qPotAsos);
+        campiDb.put("quota potenza oneri asos", qPotAsos);
+
+        // QEnOn_ARIM - QUOTA VARIABILE ARIM
+        Double qEnArim = getByKeyContains(oneri, "QUOTA VARIABILE", "ARIM");
+        campiDb.put("QEnOn_ARIM", qEnArim);
+        campiDb.put("quota energia oneri arim", qEnArim);
+
+        // QFixOn_ARIM - QUOTA FISSA ARIM
+        Double qFixArim = getByKeyContains(oneri, "QUOTA FISSA", "ARIM");
+        campiDb.put("QFixOn_ARIM", qFixArim);
+        campiDb.put("quota fissa oneri arim", qFixArim);
+
+        // QPotOn_ARIM - QUOTA POTENZA ARIM
+        Double qPotArim = getByKeyContains(oneri, "QUOTA POTENZA", "ARIM");
+        campiDb.put("QPotOn_ARIM", qPotArim);
+        campiDb.put("quota potenza oneri arim", qPotArim);
+
+        LogCustom.logKV("Oneri ASOS",
+                (qEnAsos != null ? qEnAsos : 0.0) + " + " +
+                        (qFixAsos != null ? qFixAsos : 0.0) + " + " +
+                        (qPotAsos != null ? qPotAsos : 0.0));
+        LogCustom.logKV("Oneri ARIM",
+                (qEnArim != null ? qEnArim : 0.0) + " + " +
+                        (qFixArim != null ? qFixArim : 0.0) + " + " +
+                        (qPotArim != null ? qPotArim : 0.0));
+
+        // Totale oneri - USA CHIAVI CHE FileRepo CERCA
+        Double totaleOneri = oneri.values().stream()
+                .filter(v -> v != null)
+                .reduce(0.0, Double::sum);
+        campiDb.put("Oneri", totaleOneri);
+        campiDb.put("TOTALE_ONERI", totaleOneri);
+        campiDb.put("Oneri di Sistema_TOTALE", totaleOneri);
+        LogCustom.logKV("Oneri (totale)", totaleOneri + " €");
+
+        // ==== IMPOSTE ====
+        Map<String, Double> imposte = speseEuro.getOrDefault("Imposte", new HashMap<>());
+
+// Cerca prima il TOTALE (già estratto)
+        Double totaleImposte = imposte.get("TOTALE");
+
+// Se non trovato, somma i componenti (fallback)
+        if (totaleImposte == null) {
+            totaleImposte = imposte.values().stream()
+                    .filter(v -> v != null)
+                    .reduce(0.0, Double::sum);
+        }
+
+        campiDb.put("Imposte", totaleImposte);
+        campiDb.put("TOTALE_IMPOSTE", totaleImposte);
+        campiDb.put("Totale imposte", totaleImposte);
+        LogCustom.logKV("Imposte (totale)", totaleImposte + " €");
+
+        // Generation = Spese_Ene - Dispacciamento
+        Double generation = safeSubtract(totaleVendita, dispacciamento);
+        campiDb.put("Generation", generation);
+        LogCustom.logKV("Generation", generation + " €");
+
+        LogCustom.logOk("✅ Mapping completato: " + campiDb.size() + " campi mappati");
+
+        return campiDb;
+    }
+
+
+// ============================================================================
+// HELPER PER RICERCA CHIAVI CON PATTERN
+// ============================================================================
+
+    /**
+     * Cerca un valore in una mappa dove la chiave contiene TUTTI i pattern indicati.
+     * Pattern che iniziano con '!' vengono usati per escludere chiavi.
+     */
+    private Double getByKeyContains(Map<String, Double> map, String... patterns) {
+        if (map == null || map.isEmpty()) return null;
+
+        List<String> includePatterns = new ArrayList<>();
+        List<String> excludePatterns = new ArrayList<>();
+
+        for (String pattern : patterns) {
+            if (pattern.startsWith("!")) {
+                excludePatterns.add(pattern.substring(1).toLowerCase());
+            } else {
+                includePatterns.add(pattern.toLowerCase());
+            }
+        }
+
+        for (Map.Entry<String, Double> entry : map.entrySet()) {
+            String keyLower = entry.getKey().toLowerCase();
+
+            // Verifica che contenga tutti i pattern di inclusione
+            boolean matchesAll = true;
+            for (String pattern : includePatterns) {
+                if (!keyLower.contains(pattern)) {
+                    matchesAll = false;
+                    break;
+                }
+            }
+
+            if (!matchesAll) continue;
+
+            // Verifica che NON contenga nessun pattern di esclusione
+            boolean hasExcluded = false;
+            for (String pattern : excludePatterns) {
+                if (keyLower.contains(pattern)) {
+                    hasExcluded = true;
+                    break;
+                }
+            }
+
+            if (!hasExcluded) {
+                return entry.getValue();
+            }
+        }
+
+        return null;
+    }
+
+    private Double safeSum(Double... values) {
+        double sum = 0;
+        for (Double v : values) {
+            if (v != null) sum += v;
+        }
+        return sum;
+    }
+
+    private Double safeSubtract(Double a, Double b) {
+        if (a == null) return b == null ? null : -b;
+        if (b == null) return a;
+        return a - b;
+    }
+
+// ============================================================================
+// ESTRAZIONE SPESE DETTAGLIATE CON QUANTITÀ (kWh, kW, kvarh)
+// ============================================================================
+
+    public Map<String, Object> extractSpeseDettagliateConQuantita(Document document) {
+        LogCustom.logTitle("extractSpeseDettagliateConQuantita (Nuovo Formato - Con kWh)");
+
+        Map<String, Map<String, Double>> speseEuro = new HashMap<>();
+        Map<String, Map<String, Double>> quantitaKwh = new HashMap<>();
+
+        NodeList lines = document.getElementsByTagName("Line");
+
+        String sezioneCorrente = null;
+        String sottosezioneCorrente = null;
+        String vocePrecedente = null;
+
+        // Pattern per righe complete: "dal XX.XX.XXXX al XX.XX.XXXX €/kWh PREZZO QUANTITÀ kWh € IMPORTO"
+        // Esempio: "dal 01.06.2025 al 30.06.2025 €/kWh 0,1215700300 1.038.470,00 kWh € 126.246,83 V1"
+        Pattern rigaCompletaPattern = Pattern.compile(
+                "dal\\s+\\d{2}\\.\\d{2}\\.\\d{4}\\s+al\\s+\\d{2}\\.\\d{2}\\.\\d{4}" +
+                        ".*?€/kWh\\s+([\\d,\\.]+)" +              // Prezzo unitario (gruppo 1)
+                        "\\s+([\\d\\.,]+)\\s*kWh" +              // Quantità kWh (gruppo 2)
+                        "\\s+€\\s*([\\d\\.,]+)"                   // Importo euro (gruppo 3)
+        );
+
+        // Pattern per righe con kW (potenza)
+        Pattern rigaPotenzaPattern = Pattern.compile(
+                "dal\\s+\\d{2}\\.\\d{2}\\.\\d{4}\\s+al\\s+\\d{2}\\.\\d{2}\\.\\d{4}" +
+                        ".*?€/kW/mese\\s+([\\d,\\.]+)" +         // Prezzo unitario
+                        "\\s+(\\d+)\\s+mese\\s+x\\s+([\\d\\.,]+)\\s*kW" + // Quantità kW (gruppo 3)
+                        "\\s+€\\s*([\\d\\.,]+)"                   // Importo euro (gruppo 4)
+        );
+
+        // Pattern per righe con kvarh (reattiva)
+        Pattern rigaReativaPattern = Pattern.compile(
+                "dal\\s+\\d{2}\\.\\d{2}\\.\\d{4}\\s+al\\s+\\d{2}\\.\\d{2}\\.\\d{4}" +
+                        ".*?€/kVARh\\s+([\\d,\\.]+)" +           // Prezzo unitario
+                        "\\s+([\\d\\.,]+)\\s*kVARh" +            // Quantità kvarh (gruppo 2)
+                        "\\s+€\\s*([\\d\\.,]+)"                   // Importo euro (gruppo 3)
+        );
+
+        // Pattern per righe solo con euro (quota fissa, imposte)
+        Pattern rigaSoloEuroPattern = Pattern.compile(
+                "dal\\s+\\d{2}\\.\\d{2}\\.\\d{4}\\s+al\\s+\\d{2}\\.\\d{2}\\.\\d{4}" +
+                        ".*?€\\s*([\\d\\.]+,[\\d]{2})"
+        );
+
+        for (int i = 0; i < lines.getLength(); i++) {
+            String line = lines.item(i).getTextContent().trim();
+            String lineUpper = line.toUpperCase();
+
+            // Identifica sezione principale
+            if (lineUpper.contains("SPESA PER LA VENDITA DI ENERGIA ELETTRICA")) {
+                sezioneCorrente = "Vendita Energia";
+                speseEuro.putIfAbsent(sezioneCorrente, new HashMap<>());
+                quantitaKwh.putIfAbsent(sezioneCorrente, new HashMap<>());
+                LogCustom.logOk("Sezione: " + sezioneCorrente);
+                continue;
+            }
+
+            if (lineUpper.contains("SPESA PER LA TARIFFA PER L'USO DELLA RETE ELETTRICA")) {
+                sezioneCorrente = "Uso Rete";
+                speseEuro.putIfAbsent(sezioneCorrente, new HashMap<>());
+                quantitaKwh.putIfAbsent(sezioneCorrente, new HashMap<>());
+                LogCustom.logOk("Sezione: " + sezioneCorrente);
+                continue;
+            }
+
+            if (lineUpper.contains("SPESA PER ONERI DI SISTEMA")) {
+                sezioneCorrente = "Oneri di Sistema";
+                speseEuro.putIfAbsent(sezioneCorrente, new HashMap<>());
+                quantitaKwh.putIfAbsent(sezioneCorrente, new HashMap<>());
+                LogCustom.logOk("Sezione: " + sezioneCorrente);
+                continue;
+            }
+
+            if (lineUpper.contains("TOTALE IMPOSTE")) {
+                sezioneCorrente = "Imposte";
+                speseEuro.putIfAbsent(sezioneCorrente, new HashMap<>());
+                quantitaKwh.putIfAbsent(sezioneCorrente, new HashMap<>());
+                LogCustom.logOk("Sezione: " + sezioneCorrente);
+
+                // 🔥 ESTRAI IL VALORE DIRETTAMENTE DALLA STESSA RIGA
+                Double totaleImposte = extractEuroValue(line);
+                if (totaleImposte != null) {
+                    speseEuro.get(sezioneCorrente).put("TOTALE", totaleImposte);
+                    LogCustom.logKV("TOTALE IMPOSTE estratto", totaleImposte + " €");
+                }
+                continue;
+            }
+
+            // Identifica sottosezione
+            if (lineUpper.equals("QUOTA FISSA")) {
+                sottosezioneCorrente = "QUOTA FISSA";
+                vocePrecedente = null;
+                continue;
+            }
+
+            if (lineUpper.equals("QUOTA POTENZA")) {
+                sottosezioneCorrente = "QUOTA POTENZA";
+                vocePrecedente = null;
+                continue;
+            }
+
+            if (lineUpper.equals("QUOTA VARIABILE")) {
+                sottosezioneCorrente = "QUOTA VARIABILE";
+                vocePrecedente = null;
+                continue;
+            }
+
+            if (lineUpper.equals("QUOTA ENERGIA")) {
+                sottosezioneCorrente = "QUOTA ENERGIA";
+                vocePrecedente = null;
+                continue;
+            }
+
+            // Se siamo in una sezione valida, prova a estrarre i dati
+            if (sezioneCorrente != null) {
+                // Prova pattern kWh
+                Matcher mKwh = rigaCompletaPattern.matcher(line);
+                if (mKwh.find()) {
+                    String quantitaStr = mKwh.group(2).replace(".", "").replace(",", ".");
+                    String valoreStr = mKwh.group(3).replace(".", "").replace(",", ".");
+
+                    try {
+                        Double quantita = Double.parseDouble(quantitaStr);
+                        Double valore = Double.parseDouble(valoreStr);
+
+                        String chiave = costruisciChiave(sottosezioneCorrente, vocePrecedente);
+                        speseEuro.get(sezioneCorrente).put(chiave, valore);
+                        quantitaKwh.get(sezioneCorrente).put(chiave, quantita);
+
+                        LogCustom.logKV("Estratto: " + chiave, valore + " € (" + quantita + " kWh)");
+                        vocePrecedente = null;
+                        continue;
+                    } catch (NumberFormatException e) {
+                        LogCustom.logWarn("Errore parsing kWh: " + e.getMessage());
+                    }
+                }
+
+                // Prova pattern kW (potenza)
+                Matcher mKw = rigaPotenzaPattern.matcher(line);
+                if (mKw.find()) {
+                    String quantitaStr = mKw.group(3).replace(".", "").replace(",", ".");
+                    String valoreStr = mKw.group(4).replace(".", "").replace(",", ".");
+
+                    try {
+                        Double quantita = Double.parseDouble(quantitaStr);
+                        Double valore = Double.parseDouble(valoreStr);
+
+                        String chiave = costruisciChiave(sottosezioneCorrente, vocePrecedente);
+                        speseEuro.get(sezioneCorrente).put(chiave, valore);
+                        quantitaKwh.get(sezioneCorrente).put(chiave, quantita);
+
+                        LogCustom.logKV("Estratto: " + chiave, valore + " € (" + quantita + " kW)");
+                        vocePrecedente = null;
+                        continue;
+                    } catch (NumberFormatException e) {
+                        LogCustom.logWarn("Errore parsing kW: " + e.getMessage());
+                    }
+                }
+
+                // Prova pattern kvarh (reattiva)
+                Matcher mKvarh = rigaReativaPattern.matcher(line);
+                if (mKvarh.find()) {
+                    String quantitaStr = mKvarh.group(2).replace(".", "").replace(",", ".");
+                    String valoreStr = mKvarh.group(3).replace(".", "").replace(",", ".");
+
+                    try {
+                        Double quantita = Double.parseDouble(quantitaStr);
+                        Double valore = Double.parseDouble(valoreStr);
+
+                        String chiave = costruisciChiave(sottosezioneCorrente, vocePrecedente);
+                        speseEuro.get(sezioneCorrente).put(chiave, valore);
+                        quantitaKwh.get(sezioneCorrente).put(chiave, quantita);
+
+                        LogCustom.logKV("Estratto: " + chiave, valore + " € (" + quantita + " kvarh)");
+                        vocePrecedente = null;
+                        continue;
+                    } catch (NumberFormatException e) {
+                        LogCustom.logWarn("Errore parsing kvarh: " + e.getMessage());
+                    }
+                }
+
+                // Prova pattern solo euro (per quote fisse, imposte)
+                Matcher mEuro = rigaSoloEuroPattern.matcher(line);
+                if (mEuro.find()) {
+                    String valoreStr = mEuro.group(1).replace(".", "").replace(",", ".");
+
+                    try {
+                        Double valore = Double.parseDouble(valoreStr);
+                        String chiave = costruisciChiave(sottosezioneCorrente, vocePrecedente);
+                        speseEuro.get(sezioneCorrente).put(chiave, valore);
+
+                        LogCustom.logKV("Estratto: " + chiave, valore + " €");
+                        vocePrecedente = null;
+                        continue;
+                    } catch (NumberFormatException e) {
+                        LogCustom.logWarn("Errore parsing euro: " + e.getMessage());
+                    }
+                }
+
+                // Se nessun pattern ha match, questa riga è probabilmente una descrizione
+                if (!line.isEmpty() &&
+                        !lineUpper.startsWith("UNITÀ DI MISURA") &&
+                        !lineUpper.contains("PREZZI UNITARI") &&
+                        !lineUpper.contains("QUANTITÀ") &&
+                        !lineUpper.contains("IMPORTO TOTALE")) {
+                    vocePrecedente = line;
+                }
+            }
+        }
+
+        // Crea risultato combinato
+        Map<String, Object> risultato = new HashMap<>();
+        risultato.put("speseEuro", speseEuro);
+        risultato.put("quantitaKwh", quantitaKwh);
+
+        LogCustom.logOk("Estrazione spese dettagliate con quantità completata");
+        return risultato;
+    }
+
 
 }
