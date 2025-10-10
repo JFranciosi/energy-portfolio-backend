@@ -1,6 +1,5 @@
 package miesgroup.mies.webdev.Service.cliente;
 
-
 import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.Mailer;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -8,13 +7,11 @@ import jakarta.inject.Inject;
 import jakarta.json.JsonNumber;
 import jakarta.json.JsonObject;
 import jakarta.transaction.Transactional;
-import miesgroup.mies.webdev.Model.*;
 import miesgroup.mies.webdev.Model.alert.GeneralAlert;
 import miesgroup.mies.webdev.Model.alert.MonthlyAlert;
 import miesgroup.mies.webdev.Model.alert.QuarterlyAlert;
 import miesgroup.mies.webdev.Model.alert.YearlyAlert;
 import miesgroup.mies.webdev.Model.cliente.Cliente;
-import miesgroup.mies.webdev.Repository.*;
 import miesgroup.mies.webdev.Repository.alert.GeneralAlertRepo;
 import miesgroup.mies.webdev.Repository.alert.MonthlyAlertRepo;
 import miesgroup.mies.webdev.Repository.alert.QuarterlyAlertRepo;
